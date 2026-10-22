@@ -1,5 +1,5 @@
 
-# TSAM Assignment 6 - TCP Mail Server and Client
+# TSAM Assignment 7 - TCP Mail Server and Client
 
 ## Description
 
@@ -42,7 +42,7 @@ g++ tsamclient.cpp -o tsamclient
 Open a terminal and run:
 
 ```bash
-./tsamserver 4044
+./tsamserver <port>
 ```
 
 **2. Start the client**
@@ -50,7 +50,7 @@ Open a terminal and run:
 Open another terminal and run:
 
 ```bash
-./tsamclient 127.0.0.1 4044
+./tsamclient <ip> <port>
 ```
 
 The IP address `127.0.0.1` connects to a server running on the same computer. Port `4044` is an example and can be changed.
