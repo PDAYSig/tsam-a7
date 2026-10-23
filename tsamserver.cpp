@@ -232,6 +232,116 @@ void writeLog(ofstream& logFile, string message){
     logFile << "| " << getTimestamp() << " | " << message << endl;
 }
 
+
+
+
+void connecetToServer(string ip, int port){
+
+
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    
+    if (sock < 0){
+        perror("Error creating socket");
+        return -1;
+    }
+
+    //Set server IP and port
+    sockaddr_in server_addr;
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(port);
+
+
+
+    
+    
+
+    sockaddr_in server_addr;
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(port);
+    
+    if (inet_pton(AF_INET, ip.c_str(), &server_addr.sin_addr) != 1){
+        cerr << "Invalid server IP address to connect to" << endl;
+        close(sock);
+    }
+
+    
+    
+    //Connect to the chosen server
+    if(connect(sock, (sockaddr*)&server_addr, sizeof(server_addr)) < 0){
+        perror("Error conectiong to server");
+        close(sock)
+    }
+    writeLog(logFile, "Connected to server");
+    
+
+
+
+    //send HELO
+    helo();
+    
+
+
+
+    //Receive HELO
+    char buffer[1024];
+
+    ssize_t bytes_received = recv(sock, buffer, sizeof(buffer) - 1, 0);
+
+    if (bytes_received < 0) {
+        perror("Error receiving HELO");
+    }
+
+
+    //If helo is received
+    else {
+        buffer[bytes_received] = '\0';
+
+        string group_id = buffer;
+        
+
+
+        server = Server(sock, group_id, ip, port) //Create the server
+        CONNECTED_SERVERS.push_back(server) //Add the server to our list of connected servers
+    
+       servers() //Send back SERVERS
+    }
+
+}
+
+    
+    
+    
+    void acceptServer(){
+
+}
+
+void helo(){
+    string our_group_id = uinness;
+
+
+    send()
+
+
+    
+}
+
+void servers(){
+   
+    
+    extract_command()
+}
+
+
+
+
+
+
+
+
+
+
 int main(int argc, const char* argv[]){
     if (argc != 2){
         printf("Usage: chat_server <ip port>\n");
@@ -243,16 +353,16 @@ int main(int argc, const char* argv[]){
     struct sockaddr_in client_sock_addr;
     socklen_t client_len;
     int client_sock;                        // Socket of connecting client
-
+    
     writeLog(logFile, "Setting up listening socket...");
-
-
+    
+    
     int listening_sock = open_socket(port);
     if (listening_sock < 0){
         perror("Error creating listening socket");
         exit(1);
     }
-
+    
     if (listen(listening_sock, BACKLOG) < 0){
         printf("Listen failed at %d\n", port);
         close(listening_sock);
@@ -260,13 +370,14 @@ int main(int argc, const char* argv[]){
     } 
     else 
     // Add listen socket to the list of fds being polled.
-    {
-        fds.push_back({listening_sock, POLLIN});
-        writeLog(logFile, "Server listening on port " + port);
-    }
-    
-    //bool finished = false;
-    while (true){
+{
+    fds.push_back({listening_sock, POLLIN});
+    writeLog(logFile, "Server listening on port " + port);
+}
+
+//bool finished = false;
+while (true){
+         
         // Wait for something to read
         writeLog(logFile, "Server waiting for data");
         int n = poll(fds.data(), fds.size(), -1);
