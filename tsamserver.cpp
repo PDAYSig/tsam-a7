@@ -21,7 +21,10 @@ using namespace std;
 
 #define BACKLOG  5                      // Allowed length of queue of waiting connections
 
-
+const string SERVER_ID = "G_uinness";
+const vector<Server> CONNECTED_SERVERS;
+const string TSAM_SERVER_IP = "130.208.246.98";
+const int TSAM_SERVER_PORT = 5001;
 class Client
 {
     public:
@@ -33,6 +36,27 @@ class Client
 
     Client(int socket) : sock(socket){};
     ~Client(){};
+};
+
+
+struct friend_server
+{
+    string g_id;
+    string ip;
+    int port;
+};
+
+
+class Server
+{
+    public:
+    int sock;
+    string ip;
+    int port;
+    string g_id;
+    vector<Server*> connected_servers;
+    Server(int sock_fd, string s_name, string ip_addr, int port) : sock(sock_fd), g_id(s_name), ip(ip_addr), port(port){};
+    ~Server(){};
 };
 
 
@@ -200,6 +224,7 @@ string statusRequest(){
     return message_statuses;
 }
 
+
 string createFrame(string message){
 
     //Create the frame that we edit and then return
@@ -221,12 +246,19 @@ string createFrame(string message){
     return frame;
 }
 
+
 bool sendToClient(Client* client, string message){
     string frame = createFrame(message);
     int sent = send(client->sock, frame.data(), frame.size(), 0);
     if (sent < 0) return false;
     return true;
 }
+
+
+// bool sendToServer(Server* server, string message){
+
+// }
+
 
 void writeLog(ofstream& logFile, string message){
     logFile << "| " << getTimestamp() << " | " << message << endl;
