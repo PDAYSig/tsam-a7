@@ -22,7 +22,6 @@ using namespace std;
 #define BACKLOG  5                      // Allowed length of queue of waiting connections
 
 const string SERVER_ID = "G_uinness";
-const vector<Server> CONNECTED_SERVERS;
 const string TSAM_SERVER_IP = "130.208.246.98";
 const int TSAM_SERVER_PORT = 5001;
 class Client
@@ -33,7 +32,7 @@ class Client
     unsigned char recvbuffer[5000];
     unsigned char sendbuffer[5000];
     int recvd_bytes;
-
+    
     Client(int socket) : sock(socket){};
     ~Client(){};
 };
@@ -46,6 +45,7 @@ struct friend_server
     int port;
 };
 
+vector<friend_server> freind_servers;
 
 class Server
 {
@@ -58,6 +58,8 @@ class Server
     Server(int sock_fd, string s_name, string ip_addr, int port) : sock(sock_fd), g_id(s_name), ip(ip_addr), port(port){};
     ~Server(){};
 };
+
+vector<Server> CONNECTED_SERVERS;
 
 
 string getTimestamp() {
@@ -274,7 +276,7 @@ void connecetToServer(string ip, int port){
     
     if (sock < 0){
         perror("Error creating socket");
-        return -1;
+        return;
     }
 
     //Set server IP and port
@@ -284,15 +286,6 @@ void connecetToServer(string ip, int port){
     server_addr.sin_port = htons(port);
 
 
-
-    
-    
-
-    sockaddr_in server_addr;
-    memset(&server_addr, 0, sizeof(server_addr));
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(port);
-    
     if (inet_pton(AF_INET, ip.c_str(), &server_addr.sin_addr) != 1){
         cerr << "Invalid server IP address to connect to" << endl;
         close(sock);
@@ -303,15 +296,18 @@ void connecetToServer(string ip, int port){
     //Connect to the chosen server
     if(connect(sock, (sockaddr*)&server_addr, sizeof(server_addr)) < 0){
         perror("Error conectiong to server");
-        close(sock)
+        close(sock);
     }
-    writeLog(logFile, "Connected to server");
     
 
 
+    fds.push_back({sock, POLLIN, 0});
+
 
     //send HELO
-    helo();
+    helo(sock);
+
+
     
 
 
@@ -321,7 +317,7 @@ void connecetToServer(string ip, int port){
 
     ssize_t bytes_received = recv(sock, buffer, sizeof(buffer) - 1, 0);
 
-    if (bytes_received < 0) {
+    if (bytes_received <= 0) {
         perror("Error receiving HELO");
     }
 
@@ -337,7 +333,7 @@ void connecetToServer(string ip, int port){
         server = Server(sock, group_id, ip, port) //Create the server
         CONNECTED_SERVERS.push_back(server) //Add the server to our list of connected servers
     
-       servers() //Send back SERVERS
+       servers(sock) //Send back SERVERS
     }
 
 }
@@ -345,24 +341,160 @@ void connecetToServer(string ip, int port){
     
     
     
-    void acceptServer(){
+void acceptServer(int listening_sock){
+    sockaddr_in server_addr;
+    socklen_t addr_len = sizeof(server_addr);
 
+    int new_sock = accept(listening_sock, (sockaddr*)&server_addr,&addr_len);
+
+    if (new_sock < 0){
+        perror("Error accepting server");
+        return;
+    }
+
+
+    //Get the IP of new server
+    char ip[INET_ADDRSTRLEN];
+
+    inet_ntop(AF_INET, &server_addr.sin_addr, ip, sizeof(ip));
+
+    //Get their port
+    int port = ntohs(server_addr.sin_port);
+
+
+    //Dont know the group_id yet
+    server = Server(new_sock, "", ip, port)
+    
+    CONNECTED_SERVERS.push_back(server) //Add the server to our list of connected servers
+
+
+    helo(new_sock);
+    servers(new_sock);
 }
 
-void helo(){
-    string our_group_id = uinness;
 
+void receiveHelo(int sock, string message) {
 
-    send()
+    if (message.substr(0, 5) != "HELO,") {
+        return;
+    }
 
+    string group_id = message.substr(5);
 
-    
+    for (Server& server : CONNECTED_SERVERS) {
+
+        if (server.sock == sock) {
+            server.g_id = group_id;
+
+            return;
+        }
+    }
 }
 
-void servers(){
-   
+
+
+void receiveServers(int sock, string message) {
+
+    if (message.substr(0, 8) != "SERVERS,") {
+        return;
+    }
+
+    string server_list = message.substr(8);
+
+    stringstream ss(server_list);
+    string entry;
+
+    while (getline(ss, entry, ';')) {
+
+        stringstream entry_stream(entry);
+
+        string group_id;
+        string ip;
+        string port_string;
+
+        if (!getline(entry_stream, group_id, ',')) continue;
+        if (!getline(entry_stream, ip, ',')) continue;
+        if (!getline(entry_stream, port_string, ',')) continue;
+
+        int port;
+
+        try {
+            port = stoi(port_string);
+        }
+        catch (...) {
+            continue;
+        }
+
+        // Check if we already know this server
+        bool already_exists = false;
+
+        // Check connected servers
+        for (const Server& server : CONNECTED_SERVERS) {
+            if (server.g_id == group_id) {
+                already_exists = true;
+                break;
+            }
+        }
+
+        // Check discovered servers
+        for (const friend_server& server : FRIEND_SERVERS) {
+            if (server.g_id == group_id) {
+                already_exists = true;
+                break;
+            }
+        }
+
+        // Don't add ourselves or duplicates
+        if (group_id == SERVER_ID || already_exists) {
+            continue;
+        }
+
+        // Add newly discovered server
+        friend_server new_server;
+        new_server.g_id = group_id;
+        new_server.ip = ip;
+        new_server.port = port;
+
+        FRIEND_SERVERS.push_back(new_server);
+    }
+}
+
+
+
+
+
+
+
+void helo(int sock){
+    string message = "HELO," + SERVER_ID;
     
-    extract_command()
+    if (send(sock, message.c_str(), message.size(), 0) < 0){
+        perror("Error sending HELO");
+    }    
+}
+
+void servers(int sock){
+
+    string all_servers = "SERVERS,";
+
+    for (const Server& server : CONNECTED_SERVERS) {
+
+        string id = server.g_id;
+        string ip = server.ip;
+        int port = server.port;
+
+        all_servers += id + "," + ip + "," + to_string(port) + ";";
+    }
+
+    if (!CONNECTED_SERVERS.empty()) {
+        all_servers.pop_back();
+    }
+
+
+    // TODO --send could only send half of the message at once
+    if (send(sock, all_servers.c_str(), all_servers.size(), 0) < 0){
+        perror("Error sending SERVERS");
+    }
 }
 
 
@@ -404,6 +536,10 @@ int main(int argc, const char* argv[]){
     // Add listen socket to the list of fds being polled.
 {
     fds.push_back({listening_sock, POLLIN});
+
+    
+    
+    
     writeLog(logFile, "Server listening on port " + port);
 }
 
@@ -431,6 +567,7 @@ while (true){
         for(size_t i = 1; i < readyFds.size(); i++){
             if(readyFds[i].revents & POLLIN){
                 int client_sock = readyFds[i].fd;
+                
                 Client *client = clients[client_sock];
                 unsigned char *buffer = client->recvbuffer;
             // Keep recieving until there is nothing more to recieve
