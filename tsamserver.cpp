@@ -530,18 +530,18 @@ int main(int argc, const char* argv[]){
 
 
 
-    //Connect GOATS
-    int friend_sock = connectToServer("10.100.6.121", 4022);
-    cout << "Goats socket: " << friend_sock << endl;
+    // //Connect GOATS
+    // int friend_sock = connectToServer("ip", 4022);
+    // cout << "Goats socket: " << friend_sock << endl;
 
 
-    if (friend_sock < 0) {
-        cout << "Could not connect to friend's server" << endl;
-        }
-    else {
-        cout << "Connected to friend's server!" << endl;
-        writeLog(logFile, "Connected to friend's server");
-    }
+    // if (friend_sock < 0) {
+    //     cout << "Could not connect to friend's server" << endl;
+    //     }
+    // else {
+    //     cout << "Connected to friend's server!" << endl;
+    //     writeLog(logFile, "Connected to friend's server");
+    // }
 
     while (true){
          
