@@ -24,7 +24,7 @@ using namespace std;
 #define BACKLOG  5                      // Allowed length of queue of waiting connections
 
 const string SERVER_ID = "G_uinness";
-const int SERVER_PORT = 4044;
+const int SERVER_PORT = 4088;
 const string TSAM_SERVER_IP = "130.208.246.98";
 const int TSAM_SERVER_PORT = 5001;
 class Client
@@ -286,7 +286,7 @@ void helo(int sock){
 //Tell another server all of our connected servers
 string servers(int sock){
 
-    string all_servers = "SERVERS," + SERVER_ID + "," to_string(SERVER_PORT) + ","; //Also add our server
+    string all_servers = "SERVERS," + SERVER_ID + "," + TSAM_SERVER_IP + "," + to_string(SERVER_PORT) + ";"; //Also add our server
 
     //Build the list by adding to the string valid group id's and known addresses
     for (const Server& server : CONNECTED_SERVERS) {
@@ -568,13 +568,14 @@ int main(int argc, const char* argv[]){
         //send keep alive if 1 minute has passed
         if (time(nullptr) - last_keepAlive >= 60){
 
-            for (const server& server : CONNECTED_SERVERS){
+            for (const Server& server : CONNECTED_SERVERS){
                 if (server.sock >= 0){
                     keepAlive(server.sock);
                 }
             }
             last_keepAlive = time(nullptr);
         }
+        
 
         if (n < 0){
             perror("Polling failed - Closing down\n");
@@ -717,7 +718,7 @@ int main(int argc, const char* argv[]){
                         receiveServers(sock, message);
                     }
 
-                    else if (message.subst(0, 10) == "KEEPALIVE,"){
+                    else if (message.substr(0, 10) == "KEEPALIVE,"){
                         writeLog(logFile, "Received KEEPALIVE: " + message);
                         //
 
@@ -801,5 +802,6 @@ int main(int argc, const char* argv[]){
             }
         }
     }
+
 }
 
