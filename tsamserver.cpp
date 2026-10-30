@@ -57,7 +57,7 @@ class Server
     string ip;
     int port;
     string g_id;
-    vector<Server*> connected_servers;
+    vector<string> connected_servers;
     Server(int sock_fd, string s_name, string ip_addr, int port) : sock(sock_fd), g_id(s_name), ip(ip_addr), port(port){};
     ~Server(){};
 };
@@ -134,18 +134,11 @@ int open_socket(int port){
 }
 
 
-void add_clients(int listening_sock, sockaddr_in client, size_t client_len, vector<struct pollfd>& fds){ //map<int, Client*>* clients
-    printf("Client connected!\n");
-
-              // While there is some client waiting to connect, accept that connection
+void add_connections(int listening_sock, sockaddr_in client, size_t client_len, vector<struct pollfd>& fds){     
     int client_sock = accept(listening_sock, (sockaddr*) &client,(socklen_t*) &client_len);
+    printf("New connection\n");
     fds.push_back({client_sock, POLLIN, 0});
-    Client *new_client = new Client(client_sock);
-    new_client->recvd_bytes = 0;
-    memset(new_client->recvbuffer, 0, sizeof(new_client->recvbuffer));
-    memset(new_client->sendbuffer, 0, sizeof(new_client->sendbuffer));
-    
-    clients[client_sock] = new_client;
+   
     nfds++;
 }
 
@@ -399,6 +392,21 @@ void receiveHelo(int sock, string message) {
 
 void receiveServers(int sock, string message) {
 
+    //Find the server that sent the SERVERS, to save who are connected to him
+    Server* sender = nullptr;
+    for (Server& server : CONNECTED_SERVERS) {
+        if (server.sock == sock) {
+            sender = &server;
+            break;
+        }
+    }
+    if (sender == nullptr) {
+        return;
+    }
+
+
+
+
 
     //Remove the SERVERS, (only get the list of servers)
     string server_list = message.substr(8);
@@ -462,13 +470,18 @@ void receiveServers(int sock, string message) {
             continue;
         }    
 
+        //Keep track of wich servers are connected to him
+        sender->connected_servers.push_back(group_id);
+        
+        
         // Add newly discovered server
         friend_server new_server;
         new_server.g_id = group_id;
         new_server.ip = ip;
         new_server.port = port;
-
+        
         FRIEND_SERVERS.push_back(new_server);
+        
     }    
 }    
 
@@ -511,13 +524,78 @@ string statusResp(){
 
 
 
+void receiveStatusresp(int sock, string message){
+
+    //Remove the "STATUSRESP,"
+    string server_list = message.substr(11);
+
+    if (server_list == "EMPTY"){
+        return;
+    }
+
+
+    stringstream ss(server_list);
+    string entry;
+
+
+    while (getline(ss, entry, ',')) {
+
+        stringstream entry_stream(entry);
+
+        string group_id;
+        string count_str;
+        
+
+        if (!getline(entry_stream, group_id, ':')) continue;
+        if (!getline(entry_stream, count_str, ',')) continue;
+
+        int count;
+        try {
+            count = stoi(count_str); 
+        }
+        catch(...){
+            continue;
+        }
+
+        //Check if the server is us
+        bool known_server = (group_id == SERVER_ID);
+
+        //Cechk if the server is connected to us
+        for (Server& server : CONNECTED_SERVERS){
+            if (server.g_id == group_id){
+                known_server = true;
+                break;
+            }
+        }
+
+        //Check if our friends know this server
+        for (friend_server& server : FRIEND_SERVERS){
+            if (server.g_id == group_id){
+                known_server = true;
+                break;
+            }
+        }
+
+
+
+        //Ask for the messeges that are related to us
+        //Send getMSG as many times as messeges we need
+        if (known_server && count > 0){
+            string command = "GETMSGS," + group_id;
+        
+            for (int i = 0; i < count; i++){
+                string frame = createFrame(command);
+                send(sock, frame.c_str(), frame.size(), 0);
+            }
+        }   
+    }
+}
+
+
 
 
 
 map<int, string> receive_buffer;
-
-
-
 
 //Start the server, connect to bootstrap, process incoming commands
 int main(int argc, const char* argv[]){
@@ -636,7 +714,7 @@ int main(int argc, const char* argv[]){
         // Check if the listening socket has new readable data
         if (fds[0].revents & POLLIN){
             client_len = sizeof(client_sock_addr);
-            add_clients(listening_sock, client_sock_addr, client_len, fds);
+            add_connections(listening_sock, client_sock_addr, client_len, fds);
             writeLog(logFile, "New connection accepted");
         }
         for(size_t i = 1; i < readyFds.size(); i++){
@@ -740,7 +818,27 @@ int main(int argc, const char* argv[]){
                         
                         cout << "Received HELO from socket " << sock
                                 << ": " << message << endl;
-                        
+
+
+
+                        if (CONNECTED_SERVERS.size() >= 8){
+                            for (const Server& server : CONNECTED_SERVERS){
+                                string id = server.g_id;
+                                
+                                //Remove Instructor servers first
+                                if (id.substr(0,2) == "I_"){
+                                   //removeServer()
+                                   
+                                   break;
+                                }
+                            }
+
+                            if (CONNECTED_SERVERS.size() >= 8){
+                                //REMOVE OLDEST SERVER
+                            }
+
+                        }
+                                        
                         bool already_connected = false;
                         //Check if already connected
                         for (const Server& server : CONNECTED_SERVERS){
@@ -768,7 +866,7 @@ int main(int argc, const char* argv[]){
 
                     else if (message.substr(0, 10) == "KEEPALIVE,"){
                         writeLog(logFile, "Received KEEPALIVE: " + message);
-                        //
+                        
 
 
 
@@ -778,6 +876,16 @@ int main(int argc, const char* argv[]){
                     //Client stuff
                     else if (message.substr(0, 9) == "USERNAME,"){
                         Client *client = clients[sock];
+
+                        Client *new_client = new Client(client_sock);
+                        new_client->recvd_bytes = 0;
+                        memset(new_client->recvbuffer, 0, sizeof(new_client->recvbuffer));
+                        memset(new_client->sendbuffer, 0, sizeof(new_client->sendbuffer));
+                        
+                        clients[client_sock] = new_client;
+
+
+
 
                         client->name = message.substr(9);
                         sendToClient(client, "Welcome");
@@ -798,7 +906,8 @@ int main(int argc, const char* argv[]){
                         else {
                             sendMessage(command);
                             sendToClient(client, "OK");
-                            storeMessage(command.from, command.to, to_string(time(nullptr)), command.msg);                            writeLog(logFile, "Command: SENDMSG. " + client->name +
+                            storeMessage(command.from, command.to, to_string(time(nullptr)), command.msg);                           
+                            writeLog(logFile, "Command: SENDMSG. " + client->name +
                                             " has sent a message to " + command.to);
                         }
                     }
@@ -844,7 +953,7 @@ int main(int argc, const char* argv[]){
                     }
 
                     else if (message.substr(0, 11) == "STATUSRESP,"){
-                        //TODO -- work with the stuffs
+                        receiveStatusresp(sock, message);
 
                     }
 
