@@ -95,6 +95,8 @@ struct command_input{
 struct unread_message{
     string message;
     string from;
+    string to;
+    string timestamp;
 };
 
 
@@ -182,6 +184,8 @@ command_input extract_command(char* message){
     } else return {};
     return command;
 }
+
+
 
 
 int sendMessage(command_input &command){ // store a message on the server
@@ -283,9 +287,9 @@ void helo(int sock){
 
 
 //Tell another server all of our connected servers
-string servers(int sock){
+string servers(int sock, int our_port){
 
-    string all_servers = "SERVERS,";
+    string all_servers = "SERVERS," + SERVER_ID + "," + SERVER_IP + "," + to_string(our_port) + ";"; //Also add our server
 
     //Build the list by adding to the string valid group id's and known addresses
     for (const Server& server : CONNECTED_SERVERS) {
@@ -430,9 +434,17 @@ void receiveServers(int sock, string message) {
         bool already_exists = false;
 
         // Check connected servers
-        for (const Server& server : CONNECTED_SERVERS) {
+        for (Server& server : CONNECTED_SERVERS) {
             if (server.g_id == group_id) {
                 already_exists = true;
+
+                //if we don't know the ip or the port of one of our servers, add them
+                if (server.ip == ""){
+                    server.ip = ip;
+                }
+                if (server.port == 0){
+                    server.port = port;
+                }
                 break;
             }    
         }    
@@ -460,10 +472,42 @@ void receiveServers(int sock, string message) {
     }    
 }    
 
+void keepAlive(int sock, string group_id){
+    int count = SERVER_MESSAGES[group_id].size();
+
+    string message = "KEEPALIVE,0" + to_string(count);
+    
+    string frame = createFrame(message);
+    send(sock, frame.data(), frame.size(), 0);
+}
 
 
+map<string, vector<unread_message>> SERVER_MESSAGES;
 
 
+void storeMessage(string from, string to, string timestamp, string message) {
+
+    unread_message new_message = {message, from, to, timestamp};
+
+    SERVER_MESSAGES[to].push_back(new_message);
+}
+
+
+string statusResp(){
+    string message = "STATUSRESP,";
+    for (const auto& server : SERVER_MESSAGES){
+        if (!server.second.empty()){
+            message += server.first + ":" + to_string(server.second.size()) + ",";
+        }
+    }
+    
+    if (message == "STATUSRESP,"){
+        return "STATUSRESP, empty";
+    }
+
+    message.pop_back(); //Delete the final comma
+    return message;
+}
 
 
 
@@ -537,9 +581,50 @@ int main(int argc, const char* argv[]){
             FRIEND_SERVERS.erase(FRIEND_SERVERS.begin());
         }
 
-        int n = poll(fds.data(), fds.size(), -1);
-        
+    // //Connect GOATS
+    // int friend_sock = connectToServer("ip", 4022);
+    // cout << "Goats socket: " << friend_sock << endl;
+
+
+    // if (friend_sock < 0) {
+    //     cout << "Could not connect to friend's server" << endl;
+    //     }
+    // else {
+    //     cout << "Connected to friend's server!" << endl;
+    //     writeLog(logFile, "Connected to friend's server");
+    // }
+
+    time_t last_keepAlive = time(nullptr);
+
+    while (true){
+         
         // Wait for something to read
+        int n = poll(fds.data(), fds.size(), 1000); //waits at most 1 sec
+
+        //send keep alive if 1 minute has passed
+        if (time(nullptr) - last_keepAlive >= 60){
+
+            for (const Server& server : CONNECTED_SERVERS){
+                if (server.sock >= 0){
+                    keepAlive(server.sock, server.g_id);
+
+
+
+                    //Also send STATUSREQ at the same time as KEEPALIVE
+                    string statusreq_message = "STATUSREQ";
+                    string statusreq_frame = createFrame(statusreq_message);
+
+                    if (send(server.sock, statusreq_frame.data(), statusreq_frame.size(), 0) < 0){
+                        perror("Error sending statusreq");
+                    }
+
+
+                }
+            }
+            last_keepAlive = time(nullptr);
+        }
+        
+
         if (n < 0){
             perror("Polling failed - Closing down\n");
             close(listening_sock);
@@ -672,13 +757,21 @@ int main(int argc, const char* argv[]){
                         }
                         //Send servers
                         string frame;
-                        frame = servers(sock);
+                        frame = servers(sock, port);
                         writeLog(logFile, "We sent servers: " + frame);
                     }
 
                     else if (message.substr(0,8) == "SERVERS,"){
                         writeLog(logFile, "Received SERVERS: " + message);
                         receiveServers(sock, message);
+                    }
+
+                    else if (message.substr(0, 10) == "KEEPALIVE,"){
+                        writeLog(logFile, "Received KEEPALIVE: " + message);
+                        //
+
+
+
                     }
 
 
@@ -705,7 +798,7 @@ int main(int argc, const char* argv[]){
                         else {
                             sendMessage(command);
                             sendToClient(client, "OK");
-                            writeLog(logFile, "Command: SENDMSG. " + client->name +
+                            storeMessage(command.from, command.to, to_string(time(nullptr)), command.msg);                            writeLog(logFile, "Command: SENDMSG. " + client->name +
                                             " has sent a message to " + command.to);
                         }
                     }
@@ -728,22 +821,34 @@ int main(int argc, const char* argv[]){
                         }
                     }
 
-                    else if (message == "STATUSREQ") {
-
-                        cout << "STATUSREQ requested" << endl;
-
-                        if (clients.count(sock)) {
-
-                            Client* client = clients[sock];
-
-                            string response = statusRequest();
-                            sendToClient(client, response);
-
+                   else if (message == "STATUSREQ") {
+                       
+                       if (clients.count(sock)) { //Client asks for statusreq
+                           
+                           Client* client = clients[sock];
+                           
+                           string response = statusRequest();
+                           sendToClient(client, response);
+                           
                         }
-                        else {
+                        else { //Server asked for statusreq
                             cout << "STATUSREQ received from another server" << endl;
+                            string message = statusResp();
+
+                            string frame = createFrame(message);
+                            if (send(sock, frame.data(), frame.size(), 0 ) < 0){
+                                perror("Error sending STATUSRESP");
+                            }
+                            writeLog(logFile, "Sent STATUSRESP: " + message);
                         }
                     }
+
+                    else if (message.substr(0, 11) == "STATUSRESP,"){
+                        //TODO -- work with the stuffs
+
+                    }
+
+
 
                     else {
 
@@ -757,5 +862,6 @@ int main(int argc, const char* argv[]){
             }
         }
     }
+
 }
 
