@@ -473,7 +473,7 @@ void receiveServers(int sock, string message) {
 }    
 
 void keepAlive(int sock, string group_id){
-    int count = SERVER_MESSAGES[group_id].size();
+    int count = UNREAD_MESSAGES[group_id].size();
 
     string message = "KEEPALIVE,0" + to_string(count);
     
@@ -863,5 +863,6 @@ int main(int argc, const char* argv[]){
         }
     }
 
+}
 }
 
