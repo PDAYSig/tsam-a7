@@ -26,6 +26,7 @@ using namespace std;
 const string SERVER_ID = "G_uinness";
 const string TSAM_SERVER_IP = "130.208.246.98";
 const int TSAM_SERVER_PORT = 5001;
+const string SERVER_IP = "130.208.246.98";
 class Client
 {
     public:
@@ -527,27 +528,18 @@ int main(int argc, const char* argv[]){
     }
     
 
-
-
-    // //Connect GOATS
-    // int friend_sock = connectToServer("ip", 4022);
-    // cout << "Goats socket: " << friend_sock << endl;
-
-
-    // if (friend_sock < 0) {
-    //     cout << "Could not connect to friend's server" << endl;
-    //     }
-    // else {
-    //     cout << "Connected to friend's server!" << endl;
-    //     writeLog(logFile, "Connected to friend's server");
-    // }
-
     while (true){
-         
-        // Wait for something to read
-        //writeLog(logFile, "Server waiting for data");
-        int n = poll(fds.data(), fds.size(), -1);
 
+        // Begin by checking if we have the minimum amound of required servers
+        if ((CONNECTED_SERVERS.size() < 3) && (FRIEND_SERVERS.size() > 0)){
+            friend_server server_to_connect = FRIEND_SERVERS[0];
+            if (connectToServer(server_to_connect.ip, server_to_connect.port) < 0) continue;
+            FRIEND_SERVERS.erase(FRIEND_SERVERS.begin());
+        }
+
+        int n = poll(fds.data(), fds.size(), -1);
+        
+        // Wait for something to read
         if (n < 0){
             perror("Polling failed - Closing down\n");
             close(listening_sock);
@@ -736,7 +728,7 @@ int main(int argc, const char* argv[]){
                         }
                     }
 
-                   else if (message == "STATUSREQ") {
+                    else if (message == "STATUSREQ") {
 
                         cout << "STATUSREQ requested" << endl;
 
