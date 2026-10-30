@@ -572,15 +572,6 @@ int main(int argc, const char* argv[]){
     }
     
 
-    while (true){
-
-        // Begin by checking if we have the minimum amound of required servers
-        if ((CONNECTED_SERVERS.size() < 3) && (FRIEND_SERVERS.size() > 0)){
-            friend_server server_to_connect = FRIEND_SERVERS[0];
-            if (connectToServer(server_to_connect.ip, server_to_connect.port) < 0) continue;
-            FRIEND_SERVERS.erase(FRIEND_SERVERS.begin());
-        }
-
     // //Connect GOATS
     // int friend_sock = connectToServer("ip", 4022);
     // cout << "Goats socket: " << friend_sock << endl;
@@ -597,7 +588,13 @@ int main(int argc, const char* argv[]){
     time_t last_keepAlive = time(nullptr);
 
     while (true){
-         
+         // Begin by checking if we have the minimum amound of required servers
+        if ((CONNECTED_SERVERS.size() < 3) && (FRIEND_SERVERS.size() > 0)){
+            friend_server server_to_connect = FRIEND_SERVERS[0];
+            if (connectToServer(server_to_connect.ip, server_to_connect.port) < 0) continue;
+            FRIEND_SERVERS.erase(FRIEND_SERVERS.begin());
+        }
+
         // Wait for something to read
         int n = poll(fds.data(), fds.size(), 1000); //waits at most 1 sec
 
