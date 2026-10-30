@@ -139,7 +139,6 @@ void add_clients(int listening_sock, sockaddr_in client, size_t client_len, vect
 
               // While there is some client waiting to connect, accept that connection
     int client_sock = accept(listening_sock, (sockaddr*) &client,(socklen_t*) &client_len);
-    //TODO: if no username, fuck you
     fds.push_back({client_sock, POLLIN, 0});
     Client *new_client = new Client(client_sock);
     new_client->recvd_bytes = 0;
@@ -573,7 +572,14 @@ int main(int argc, const char* argv[]){
     }
     
 
+    while (true){
 
+        // Begin by checking if we have the minimum amound of required servers
+        if ((CONNECTED_SERVERS.size() < 3) && (FRIEND_SERVERS.size() > 0)){
+            friend_server server_to_connect = FRIEND_SERVERS[0];
+            if (connectToServer(server_to_connect.ip, server_to_connect.port) < 0) continue;
+            FRIEND_SERVERS.erase(FRIEND_SERVERS.begin());
+        }
 
     // //Connect GOATS
     // int friend_sock = connectToServer("ip", 4022);
