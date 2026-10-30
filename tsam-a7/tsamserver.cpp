@@ -27,6 +27,7 @@ const string SERVER_ID = "G_uinness";
 const int SERVER_PORT = 4088;
 const string TSAM_SERVER_IP = "130.208.246.98";
 const int TSAM_SERVER_PORT = 5001;
+const string SERVER_IP = "130.208.246.98";
 class Client
 {
     public:
@@ -286,7 +287,7 @@ void helo(int sock){
 //Tell another server all of our connected servers
 string servers(int sock){
 
-    string all_servers = "SERVERS," + SERVER_ID + "," + TSAM_SERVER_IP + "," + to_string(SERVER_PORT) + ";"; //Also add our server
+    string all_servers = "SERVERS," + SERVER_ID + "," + SERVER_IP + "," + to_string(SERVER_PORT) + ";"; //Also add our server
 
     //Build the list by adding to the string valid group id's and known addresses
     for (const Server& server : CONNECTED_SERVERS) {
