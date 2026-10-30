@@ -136,7 +136,6 @@ void add_clients(int listening_sock, sockaddr_in client, size_t client_len, vect
 
               // While there is some client waiting to connect, accept that connection
     int client_sock = accept(listening_sock, (sockaddr*) &client,(socklen_t*) &client_len);
-    //TODO: if no username, fuck you
     fds.push_back({client_sock, POLLIN, 0});
     Client *new_client = new Client(client_sock);
     new_client->recvd_bytes = 0;
