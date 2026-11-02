@@ -266,6 +266,48 @@ Incoming connections are identified using their initial commands:
 
 Disconnected sockets are removed from the relevant connection structures.
 
+
+## Expected Points and Evidence
+
+We expect points for the following functionality:
+
+### Server-to-Server Communication
+
+Our server successfully connects to other servers and
+exchanges HELO and SERVERS commands.
+
+Evidence in server.log:
+- Received HELO: 02/11/2026 22:36:49
+- Sent SERVERS: 02/11/2026 22:36:49
+- Received SERVERS: 02/11/2026 22:36:49
+
+### Receiving Messages from Other Groups
+
+Our server successfully received messages from two other groups.
+
+Message 1:
+- Received: 02/11/2026 18:37:41
+- Retrieved by client: 02/11/2026 18:43:31
+
+Message 2:
+- Received: 02/11/2026 23:08:59
+- Retrieved by client: 02/11/2026 23:17:41
+
+### Other Requirements
+
+[Add the remaining regular grading criteria you expect
+to satisfy, together with the relevant log timestamps.]
+
+
+
+## Development and Testing Environment
+
+The project was developed using Visual Studio Code on Windows
+with Ubuntu running through Windows Subsystem for Linux (WSL).
+
+The server and client were compiled and tested on Linux.
+Additional testing was performed on the university TSAM server.
+
 ## Logging
 
 Server activity is written to:
@@ -283,6 +325,38 @@ The log includes events such as:
 - Message forwarding
 - Message storage and delivery
 - Socket disconnections
+
+
+
+### Successful Server-to-Server Connection
+
+Our server successfully connected to another server and exchanged the required `HELO` and `SERVERS` commands.
+
+The following events can be found in `server.log`:
+
+- **Received HELO:** 02/11/2026 22:36:49
+- **Sent SERVERS:** 02/11/2026 22:36:49
+- **Received SERVERS:** 02/11/2026 22:36:49
+
+These log entries show that our server successfully established communication with another server.
+
+### Successfully Received Messages from Two Other Groups
+
+Our server successfully received messages from at least two other groups. The messages were stored and later retrieved by our client.
+
+The following timestamps can be used to locate the messages in `server.log`:
+
+**Message 1**
+- **Message received:** 02/11/2026 18:37:41
+- **Client retrieved message:** 02/11/2026 18:43:31
+
+**Message 2**
+- **Message received:** 02/11/2026 23:08:59
+- **Client retrieved message:** 02/11/2026 23:17:41
+
+These entries document successful message reception and client retrieval.
+
+
 
 
 
