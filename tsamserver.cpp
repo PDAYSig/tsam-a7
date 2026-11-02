@@ -955,6 +955,7 @@ int main(int argc, const char* argv[]){
 
                         if (!already_connected) {
                             helo(sock);
+                            writeLog(logFile, "We sent HELO");
                         }
 
                         string response = servers(sock, port);
