@@ -249,10 +249,10 @@ string statusRequest(){
     for (const auto& [name, count] : counts){
         int message_len = messages.size();
         if (!message_statuses.empty()){
-            message_satuses += ",";
+            message_statuses += ",";
         }
 
-        message_statuses += (name + ":" + to_string(counts));        
+        message_statuses += (name + ":" + to_string(count));        
     }
     if (message_statuses.empty()){
         return "EMPTY";
