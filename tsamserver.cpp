@@ -385,7 +385,6 @@ string servers(int sock, int our_port){
 
 int connectToServer(string ip, int port){
 
-
     //Create a IPv4 socket for the connection
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     
@@ -534,7 +533,8 @@ void receiveServers(int sock, string message) {
         }    
 
         // Don't add ourselves or duplicates
-        if (group_id == SERVER_ID || already_exists) {
+        // G_nammi and G_mancheetah were messing up our logs so we blocked them
+        if (group_id == SERVER_ID || already_exists || group_id == "G_nammi" || group_id == "G_mancheetah") {
             continue;
         }    
 
@@ -590,7 +590,7 @@ string statusResp(){
     }
     
     if (message == "STATUSRESP,"){
-        return "STATUSRESP, EMPTY";
+        return "STATUSRESP,EMPTY";
     }
 
     message.pop_back(); //Delete the final comma
@@ -762,15 +762,13 @@ int main(int argc, const char* argv[]){
         if ((CONNECTED_SERVERS.size() < 8) && (FRIEND_SERVERS.size() > 0)){
             friend_server server_to_connect = FRIEND_SERVERS[0];
             writeLog(logFile, "Attempting to connect to " + server_to_connect.g_id);
+            FRIEND_SERVERS.erase(FRIEND_SERVERS.begin());
 
             if (connectToServer(server_to_connect.ip, server_to_connect.port) < 0){
                 writeLog(logFile, "Failed to connect to " + server_to_connect.g_id);
-                continue;
-            }
-            writeLog(logFile, "Connected to " + server_to_connect.g_id);
-            FRIEND_SERVERS.erase(FRIEND_SERVERS.begin());
+            } else writeLog(logFile, "Connected to " + server_to_connect.g_id);
         }
-         
+        
         // Wait for something to read
         int n = poll(fds.data(), fds.size(), 1000); //waits at most 1 sec
 
@@ -909,58 +907,58 @@ int main(int argc, const char* argv[]){
 
                     //After this is checking wich command was used
 
-                    if (message.substr(0,5) == "HELO,"){
+                    if (message.substr(0, 5) == "HELO,") {
                         writeLog(logFile, "Received HELO: " + message);
-                        
+
                         cout << "Received HELO from socket " << sock
-                                << ": " << message << endl;
+                            << ": " << message << endl;
 
+                        bool already_connected = any_of(
+                            CONNECTED_SERVERS.begin(),
+                            CONNECTED_SERVERS.end(),
+                            [sock](const Server& server) {
+                                return server.sock == sock;
+                            }
+                        );
 
-
-                        if (CONNECTED_SERVERS.size() >= 8){
-                            for (Server& server : CONNECTED_SERVERS){
-                                string id = server.g_id;
-                                
-                                //Remove Instructor servers first
-                                if (id.substr(0,2) == "I_"){
-                                    remove_server(&server);
-                                    writeLog(logFile, "Removed an instructor server in favor of group server: " + server.g_id + " was removed");
-
-                                    break;
+                        if (!already_connected && CONNECTED_SERVERS.size() >= 8) {
+                            auto it = find_if(
+                                CONNECTED_SERVERS.begin(),
+                                CONNECTED_SERVERS.end(),
+                                [sock](const Server& server) {
+                                    return server.sock != sock &&
+                                        server.g_id.substr(0, 2) == "I_";
                                 }
+                            );
+
+                            if (it == CONNECTED_SERVERS.end()) {
+                                it = find_if(
+                                    CONNECTED_SERVERS.begin(),
+                                    CONNECTED_SERVERS.end(),
+                                    [sock](const Server& server) {
+                                        return server.sock != sock;
+                                    }
+                                );
                             }
 
-                            if (CONNECTED_SERVERS.size() >= 8){
-                                //REMOVE OLDEST SERVER
-                                Server first_server = CONNECTED_SERVERS.front();
-                                remove_server(&first_server);
-                                writeLog(logFile, "Removed an old server in favor of new server: " + first_server.g_id + " was removed");
-
+                            if (it != CONNECTED_SERVERS.end()) {
+                                string removed_id = it->g_id;
+                                remove_server(&*it);
+                                writeLog(logFile, "Removed server: " + removed_id);
                             }
-
                         }
 
-                        bool already_connected = false;
-                        //Check if already connected
-                        for (const Server& server : CONNECTED_SERVERS){
-                            if (server.sock == sock){
-                                already_connected = true;
-                                break;
-                            }
-                        }   
-                        //Save the server
                         receiveHelo(sock, message);
-                        writeLog(logFile, "Processed HELO for peer on socket " + to_string(sock) + ": " + message.substr(5));
 
+                        writeLog(logFile, "Processed HELO for peer on socket " +
+                                        to_string(sock) + ": " + message.substr(5));
 
-
-                        if (!already_connected){
-                            helo(sock); //Only send helo if we have not already
+                        if (!already_connected) {
+                            helo(sock);
                         }
-                        //Send servers
-                        string frame;
-                        frame = servers(sock, port);
-                        writeLog(logFile, "We sent servers: " + frame);
+
+                        string response = servers(sock, port);
+                        writeLog(logFile, "We sent servers: " + response);
                     }
 
                     else if (message.substr(0, 8) == "SERVERS,"){
