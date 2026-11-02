@@ -3,13 +3,13 @@
 
 ## Description
 
-This project implements a distributed TCP messaging system in C++.
+This project is a TCP messaging system written in C++.
 
-It extends the client-server messaging system from Assignment 6 by allowing multiple servers to connect and exchange messages.
+It builds on Assignment 6 by allowing servers to connect and communicate with each other, instead of only handling clients.
 
-Each server can receive messages from clients, forward messages to other servers, and store messages when their destination is not reachable.
+Servers can receive messages from clients, forward them to other servers, and store them if the destination is currently unavailable.
 
-The system uses a store-and-forward approach to deliver messages between different groups.
+This allows messages to be passed between different groups, even when the receiving server is not directly connected.
 
 ## Group Information
 
@@ -19,13 +19,16 @@ The system uses a store-and-forward approach to deliver messages between differe
 - **Language:** C++
 - **Platform:** Linux
 
+
 ## Files
 
 - `tsamserver.cpp` – TCP server implementation
 - `tsamclient.cpp` – TCP client implementation
+- `identity.h` – Contains the group's identity information
 - `Makefile` – Compiles the project
 - `server.log` – Records server activity
 - `README.md` – Project documentation
+
 
 ## Compilation
 
@@ -64,12 +67,6 @@ Start the client using:
 ./tsamclient <server-ip> <server-port>
 ```
 
-For example:
-
-```bash
-./tsamclient 127.0.0.1 4000
-```
-
 The client connects to the specified server and can send messages, retrieve messages, and request message status.
 
 ## Communication Protocol
@@ -104,12 +101,6 @@ Registers a client username.
 USERNAME,<username>
 ```
 
-Example:
-
-```text
-USERNAME,olgeir
-```
-
 The server responds with:
 
 ```text
@@ -124,11 +115,7 @@ Sends a message to another user or group.
 SENDMSG,<from>,<to>,<message>
 ```
 
-Example:
 
-```text
-SENDMSG,olgeir,G_goats,Hello!
-```
 
 The server adds a timestamp before forwarding the message to another server.
 
@@ -140,11 +127,7 @@ Retrieves the oldest unread message from a specified sender.
 GETMSG,<from>
 ```
 
-Example:
 
-```text
-GETMSG,G_goats
-```
 
 If no matching message exists, the server responds with:
 
@@ -160,13 +143,6 @@ Requests information about unread messages.
 STATUSREQ
 ```
 
-Example response:
-
-```text
-G_goats:2,G_nammi:1
-```
-
-This indicates two messages from `G_goats` and one from `G_nammi`.
 
 If there are no unread messages, the server responds with `EMPTY`.
 
@@ -180,11 +156,6 @@ Exchanges group identities when servers connect.
 HELO,<group-id>
 ```
 
-Example:
-
-```text
-HELO,G_uinness
-```
 
 ### SERVERS
 
@@ -192,12 +163,6 @@ Shares information about known servers.
 
 ```text
 SERVERS,<group-id>,<ip>,<port>;...
-```
-
-Example:
-
-```text
-SERVERS,G_uinness,130.208.246.98,4000;G_goats,130.208.246.98,4022
 ```
 
 The received information is used for discovering additional servers and determining possible forwarding routes.
@@ -210,11 +175,7 @@ Notifies a connected server about the number of messages waiting for it.
 KEEPALIVE,<count>
 ```
 
-Example:
-
-```text
-KEEPALIVE,3
-```
+`
 
 The receiving server can request its waiting messages using `GETMSGS`.
 
@@ -228,11 +189,6 @@ Requests stored messages for a specified group.
 GETMSGS,<group-id>
 ```
 
-Example:
-
-```text
-GETMSGS,G_uinness
-```
 
 ### SENDMSG
 
@@ -240,12 +196,6 @@ Transfers a message between servers.
 
 ```text
 SENDMSG,<from>,<to>,<timestamp>,<message>
-```
-
-Example:
-
-```text
-SENDMSG,olgeir,G_goats,1793500000,Hello!
 ```
 
 The original timestamp is preserved when the message is forwarded.
@@ -266,11 +216,7 @@ Returns the number of stored messages for each destination group.
 STATUSRESP,<group-id>:<count>,...
 ```
 
-Example:
 
-```text
-STATUSRESP,G_goats:2,G_nammi:1
-```
 
 If no messages are stored:
 
@@ -338,23 +284,6 @@ The log includes events such as:
 - Message storage and delivery
 - Socket disconnections
 
-To view recent log entries:
-
-```bash
-tail -n 30 server.log
-```
-
-To monitor the log continuously:
-
-```bash
-tail -f server.log
-```
-
-To clear the log:
-
-```bash
-> server.log
-```
 
 ## Implementation Details
 
@@ -371,11 +300,6 @@ The project uses:
 
 No third-party networking libraries are required.
 
-## Notes
-
-Messages are currently stored in memory and are not preserved across server restarts.
-
-The server is designed to run on Linux and communicate with other student servers using the Assignment 8 protocol.
 
 ## Course
 
