@@ -908,21 +908,20 @@ int main(int argc, const char* argv[]){
 
 
                         if (CONNECTED_SERVERS.size() >= 8){
-                            for (const Server& server : CONNECTED_SERVERS){
+                            for (Server& server : CONNECTED_SERVERS){
                                 string id = server.g_id;
                                 
                                 //Remove Instructor servers first
                                 if (id.substr(0,2) == "I_"){
-                                   //remove_server(server)
-
+                                    remove_server(server);
                                     break;
                                 }
                             }
 
                             if (CONNECTED_SERVERS.size() >= 8){
-                                //REMOVE OLDEST SERVER
-                                //first_server = CONNECTED_SERVERS.begin()
-                                //remove_server(first_server)
+                                //REMOVE OLDEST SERVER if there is no instructor
+                                Server* first_server = CONNECTED_SERVERS.front();
+                                remove_server(first_server);
                             }
 
                         }
@@ -971,7 +970,7 @@ int main(int argc, const char* argv[]){
                         writeLog(logFile, "Received KEEPALIVE: " + message);
                     }
 
-                    else if (message.substr(0, 8) == "GETMSGS"){
+                    else if (message.substr(0, 8) == "GETMSGS,"){
                         writeLog(logFile, "Received GETMSGS: " + message);
                         string to = message.substr(8, length);
                         if (to == SERVER_ID){
