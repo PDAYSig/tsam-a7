@@ -301,8 +301,10 @@ Evidence in server.log:
 
 ### Receiving Messages from Other Groups
 
-Our server successfully received messages from two other groups.
-
+Our server successfully received messages from other groups.
+```text
+example
+```
 Message 1:
 - Received: 02/11/2026 18:37:41
 - Retrieved by client: 02/11/2026 18:43:31
@@ -316,8 +318,7 @@ Message 2:
 
 ## Development and Testing Environment
 
-The project was developed using Visual Studio Code on Windows
-with Ubuntu running through Windows Subsystem for Linux (WSL).
+The project was developed using Visual Studio Code
 
 The server and client were compiled and tested on Linux.
 Additional testing was performed on the university TSAM server.
