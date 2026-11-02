@@ -1066,11 +1066,11 @@ int main(int argc, const char* argv[]){
                                                 break;
                                             }
                                         }
-                                        if (knwon) break;
+                                        if (known) break;
                                     }
                                 }
                                 if (!known){
-                                    storeMessage(command.from, command.to, command.timestamp), command.msg);
+                                    storeMessage(command.from, command.to, command.timestamp, command.msg);
                                     writeLog(logFile, "Received SENDMSG from client on socket " + to_string(sock) + " for " + command.to);
                                 }
                                 writeLog(logFile, "Client " + client->name + " sent a message to " + command.to);
