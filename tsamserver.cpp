@@ -556,7 +556,7 @@ void receiveServers(int sock, string message) {
 void keepAlive(int sock, string group_id){
     int count = UNREAD_MESSAGES[group_id].size();
 
-    string message = "KEEPALIVE,0" + to_string(count);
+    string message = "KEEPALIVE," + to_string(count);
     
     string frame = createFrame(message);
     send(sock, frame.data(), frame.size(), 0);
@@ -1066,11 +1066,11 @@ int main(int argc, const char* argv[]){
                                                 break;
                                             }
                                         }
-                                        if (knwon) break;
+                                        if (known) break;
                                     }
                                 }
                                 if (!known){
-                                    storeMessage(command.from, command.to, command.timestamp), command.msg);
+                                    storeMessage(command.from, command.to, command.timestamp, command.msg);
                                     writeLog(logFile, "Received SENDMSG from client on socket " + to_string(sock) + " for " + command.to);
                                 }
                                 writeLog(logFile, "Client " + client->name + " sent a message to " + command.to);
