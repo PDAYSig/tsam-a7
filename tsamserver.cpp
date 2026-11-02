@@ -27,8 +27,6 @@ const string SERVER_ID = "G_uinness";
 const string TSAM_SERVER_IP = "130.208.246.98";
 const int TSAM_SERVER_PORT = 5001;
 const string SERVER_IP = "130.208.246.98";
-vector<Server> CONNECTED_SERVERS;
-vector<friend_server> FRIEND_SERVERS;
 struct command_input{
     string cmd;
     string from;
@@ -55,14 +53,12 @@ class Client
     ~Client(){};
 };
 
-
 struct friend_server
 {
     string g_id;
     string ip;
     int port;
 };
-
 
 class Server
 {
@@ -71,15 +67,16 @@ class Server
     string ip;
     int port;
     string g_id;
-    vector<Server*> connected_servers;
     unsigned char recvbuffer[5000];
     unsigned char sendbuffer[5000];
-
     vector<string> connected_servers;
+
     Server(int sock_fd, string s_name, string ip_addr, int port) : sock(sock_fd), g_id(s_name), ip(ip_addr), port(port){};
     ~Server(){};
 };
 
+vector<Server> CONNECTED_SERVERS;
+vector<friend_server> FRIEND_SERVERS;
 
 
 string getTimestamp() {
