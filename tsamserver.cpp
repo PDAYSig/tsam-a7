@@ -206,44 +206,56 @@ command_input extract_command(char* message){
 
 
 
-int sendMessage(command_input &command){ // store a message on the server
-    unread_message new_message;
-    new_message.message = command.msg;
-    new_message.from = command.from;
 
-    UNREAD_MESSAGES[command.to].push_back(new_message);
-
-    printf("MESSAGE SENT\n");
-    return 0;
-}
 
 
 string getMessage(string from){
-    /* Returns the most recent unread messages from a specified client */
-    if (UNREAD_MESSAGES.count("G_uinness") == 0) return "EMPTY";
-    string client_message;
-    vector<unread_message>& client_message_vector = UNREAD_MESSAGES["G_uinness"];
-    for (int i = 0; i < client_message_vector.size(); i++){
-        if (client_message_vector[i].from == from){
-            client_message = client_message_vector[i].message;
-            client_message_vector.erase(client_message_vector.begin() + i);
+
+    if (UNREAD_MESSAGES.count(SERVER_ID) == 0)
+        return "EMPTY";
+
+    vector<unread_message>& messages = UNREAD_MESSAGES[SERVER_ID];
+
+    for (int i = 0; i < messages.size(); i++){
+
+        if (messages[i].from == from){
+
+            string result = messages[i].message;
+
+            messages.erase(messages.begin() + i);
+
+            return result;
         }
     }
-    return client_message;
+
+    return "EMPTY";
 }
 
 
 string statusRequest(){
     printf("STATUSREQ requested\n");
+
     string message_statuses;
+    map<string, int> counts;
+
+
+    // Only check messages addressed to our server
+    for (const unread_message& msg : UNREAD_MESSAGES[SERVER_ID]){
+        counts[msg.from]++;
+    }
+
+
     int i = 1;
-    for (const auto& [name, messages] : UNREAD_MESSAGES){
+    for (const auto& [name, count] : counts){
         int message_len = messages.size();
-        if (message_len > 0){
-            message_statuses += (name + ":" + to_string(message_len));
-            i++;
-            if (i != 1) message_statuses += ",";
+        if (!message_statuses.empty()){
+            message_satuses += ",";
         }
+
+        message_statuses += (name + ":" + to_string(counts));        
+    }
+    if (message_statuses.empty()){
+        return "EMPTY";
     }
     return message_statuses;
 }
@@ -551,6 +563,14 @@ void storeMessage(string from, string to, string timestamp, string message) {
 
     UNREAD_MESSAGES[to].push_back(new_message);
 }
+
+
+
+
+
+
+
+
 
 
 string statusResp(){
@@ -992,9 +1012,7 @@ int main(int argc, const char* argv[]){
                           
                             if (clients.count(sock)){ //message from a client
                                 Client *client = clients[sock];
-                                
-                                sendMessage(command);
-                                sendToClient(client, "OK");
+                                                                sendToClient(client, "OK");
                                 storeMessage(command.from, command.to, to_string(time(nullptr)), command.msg);                           
                                 writeLog(logFile, "Client " + client->name + " sent a message to " + command.to);
 
