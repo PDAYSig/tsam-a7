@@ -913,19 +913,29 @@ int main(int argc, const char* argv[]){
                                 
                                 //Remove Instructor servers first
                                 if (id.substr(0,2) == "I_"){
+<<<<<<< HEAD
+                                    remove_server(server);
+=======
                                     remove_server(&server);
                                     writeLog(logFile, "Removed an instructor server in favor of group server: " + server.g_id + " was removed");
 
+>>>>>>> ed9ae5f5744aec663d88bc7bb0145fabd30dd50b
                                     break;
                                 }
                             }
 
                             if (CONNECTED_SERVERS.size() >= 8){
+<<<<<<< HEAD
+                                //REMOVE OLDEST SERVER if there is no instructor
+                                Server* first_server = CONNECTED_SERVERS.front();
+                                remove_server(first_server);
+=======
                                 //REMOVE OLDEST SERVER
                                 Server first_server = CONNECTED_SERVERS.front();
                                 remove_server(&first_server);
                                 writeLog(logFile, "Removed an old server in favor of new server: " + first_server.g_id + " was removed");
 
+>>>>>>> ed9ae5f5744aec663d88bc7bb0145fabd30dd50b
                             }
 
                         }
