@@ -285,6 +285,52 @@ The log includes events such as:
 - Socket disconnections
 
 
+
+
+## Bonus Points
+
+Our group worked on the following two bonus tasks:
+
+### Early Bot (10 points)
+
+We completed an early version of the server-to-server communication within the first week.
+
+Our server was able to connect to another server, exchange `HELO` and `SERVERS` commands, and send messages between servers.
+
+The implementation and logs of the exchange were submitted for the Early Bot bonus.
+
+### Indirect Bot (20 points)
+
+Our server also supports indirect message delivery, meaning messages can travel through other servers instead of going directly from the sender to the recipient.
+
+This bonus consists of two parts:
+
+- **Relaying (10 points):** Forwarding messages between other groups, where our server is neither the original sender nor the final recipient.
+- **Patience (10 points):** Storing messages when the destination server is unreachable and delivering them when a connection becomes available.
+
+#### Indirect Bot Timestamps
+
+The following timestamps from November 2, 2026, can be used to locate the relevant messages in `server.log`:
+
+```text
+02/11/2026 19:44:42
+02/11/2026 22:42:48
+02/11/2026 22:25:59
+02/11/2026 22:23:56
+02/11/2026 22:23:56
+02/11/2026 22:23:56
+02/11/2026 22:23:56
+02/11/2026 21:01:47
+02/11/2026 21:01:47
+02/11/2026 20:56:26
+```
+
+These timestamps help identify the message exchanges used for the Indirect Bot bonus.
+
+The corresponding log entries should show the incoming and outgoing `SENDMSG` commands for relaying, and message storage followed by successful delivery for patience.
+
+
+
 ## Implementation Details
 
 The project uses:
