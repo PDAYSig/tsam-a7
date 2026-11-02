@@ -580,6 +580,19 @@ void receiveStatusresp(int sock, string message){
         return;
     }
 
+    //Get the server that sent statusresp
+    string sender_id = "";
+
+    for (const Server& server : CONNECTED_SERVERS){
+        if (server.sock == sock){
+            sender_id = server.g_id;
+            break;
+        }
+    }
+
+
+
+
 
     stringstream ss(server_list);
     string entry;
@@ -627,11 +640,12 @@ void receiveStatusresp(int sock, string message){
 
         //Ask for the messeges that are related to us
         //Send getMSG as many times as messeges we need
-        if (known_server && count > 0 && group_id.substr(0,2) != "I_"){
+        if (known_server && count > 0 && group_id.substr(0,2) != "I_" && group_id != sender_id){
             string command = "GETMSGS," + group_id;
         
             string frame = createFrame(command);
             send(sock, frame.c_str(), frame.size(), 0);
+            cout << "sent GETMSGS to " + group_id;
             }
         }   
     }
@@ -946,25 +960,29 @@ int main(int argc, const char* argv[]){
 
                     //Client stuff
                     else if (message.substr(0, 9) == "USERNAME,"){
+                        cout << "1. USERNAME received" << endl;           
                         
-                        
-                        
-                        
-                        
-                        Client *client = clients[sock];
 
-                        Client *new_client = new Client(client_sock);
-                        new_client->recvd_bytes = 0;
-                        memset(new_client->recvbuffer, 0, sizeof(new_client->recvbuffer));
-                        memset(new_client->sendbuffer, 0, sizeof(new_client->sendbuffer));
+                        Client *client = new Client(sock);
+
+                         cout << "2. Client created" << endl;
+
+                        client->recvd_bytes = 0;
+                        memset(client->recvbuffer, 0, sizeof(client->recvbuffer));
+                        memset(client->sendbuffer, 0, sizeof(client->sendbuffer));
                         
-                        clients[client_sock] = new_client;
+                        clients[sock] = client;
+                        cout << "3. Client saved" << endl;
 
 
 
 
                         client->name = message.substr(9);
+                        cout << "4. Username: " << client->name << endl;
+
                         sendToClient(client, "Welcome");
+                        cout << "5. Welcome sent" << endl;
+
                         writeLog(logFile, "Username Recieved: " + client->name);
                         writeLog(logFile, client->name + " has logged in!"); 
 
@@ -972,24 +990,30 @@ int main(int argc, const char* argv[]){
                     }
 
                     else if (message.substr(0, 8) == "SENDMSG,"){
-
-
-                        Client *client = clients[sock];
                         command_input command = extract_command((char*)message.c_str());
 
                         if (command.from.empty() || command.to.empty() || command.msg.empty()){
                             cout << "Incorrectly formatted SENDMSG" << endl;
                             writeLog(logFile, "Invalid SENDMSG received on socket " + to_string(sock));
 
-
-
                         }
                         else {
-                            sendMessage(command);
-                            sendToClient(client, "OK");
-                            storeMessage(command.from, command.to, to_string(time(nullptr)), command.msg);                           
-                            writeLog(logFile, "Command: SENDMSG. " + client->name +
-                                            " has sent a message to " + command.to);
+                          
+                            if (clients.count(sock)){ //message from a client
+                                Client *client = clients[sock];
+                                
+                                sendMessage(command);
+                                sendToClient(client, "OK");
+                                storeMessage(command.from, command.to, to_string(time(nullptr)), command.msg);                           
+                                writeLog(logFile, "Client " + client->name + " sent a message to " + command.to);
+
+                            }
+
+                            else{ //Message from a server
+                                storeMessage(command.from, command.to, to_string(time(nullptr)), command.msg);
+
+                                writeLog(logFile, "Received SENDMSG from server on socket " + to_string(sock) + " for " + command.to);
+                            }
                         }
                     }
 
