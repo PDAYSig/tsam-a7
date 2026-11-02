@@ -219,7 +219,7 @@ int sendMessage(command_input &command){ // store a message on the server
 
 
 string getMessage(string client, string from){
-    /* Returns the most recent unread messages from a specified client */
+    /* Returns the most recent unread messages from a specified client or server*/
     if (UNREAD_MESSAGES.count(client) == 0) return "EMPTY";
     string client_message;
     vector<unread_message>& client_message_vector = UNREAD_MESSAGES[client];
@@ -285,14 +285,14 @@ bool sendToServer(Server* server, string message){
 }
 
 
-// Returns the most recent message a group has on this server
+// Returns the oldest message a group has on this server
 unread_message getmsgs(string g_id){
     if (UNREAD_MESSAGES.count(g_id) > 0){
         vector<unread_message> messages = UNREAD_MESSAGES[g_id];
         
-        unread_message most_recent = messages.front();
+        unread_message oldest = messages.front();
         messages.erase(messages.begin());
-        return most_recent;
+        return oldest;
     }
     unread_message empty_message = {};
     return empty_message;
@@ -858,10 +858,10 @@ int main(int argc, const char* argv[]){
                     }
 
 
+                    /* ------- No incomplete commands get past here ------- */
                     // Extract the command and remove the frame from the buffer.
                     message = data.substr(4, length - 5);
                     data.erase(0, length);
-
 
 
 
@@ -882,8 +882,8 @@ int main(int argc, const char* argv[]){
                                 //Remove Instructor servers first
                                 if (id.substr(0,2) == "I_"){
                                    //remove_server(server)
-                                   
-                                   break;
+
+                                    break;
                                 }
                             }
 
@@ -894,7 +894,7 @@ int main(int argc, const char* argv[]){
                             }
 
                         }
-                                        
+
                         bool already_connected = false;
                         //Check if already connected
                         for (const Server& server : CONNECTED_SERVERS){
@@ -918,7 +918,7 @@ int main(int argc, const char* argv[]){
                         writeLog(logFile, "We sent servers: " + frame);
                     }
 
-                    else if (message.substr(0,8) == "SERVERS,"){
+                    else if (message.substr(0, 8) == "SERVERS,"){
                         writeLog(logFile, "Received SERVERS: " + message);
                         receiveServers(sock, message);
                     }
@@ -936,21 +936,32 @@ int main(int argc, const char* argv[]){
 
                             writeLog(logFile, "Sent GETMSGS to socket " + to_string(sock));
                         }
+                        writeLog(logFile, "Received KEEPALIVE: " + message);
                     }
-                   
 
-                
-
+                    else if (message.substr(0, 8) == "GETMSGS"){
+                        writeLog(logFile, "Received GETMSGS: " + message);
+                        string to = message.substr(8, length);
+                        if (to == SERVER_ID){
+                            writeLog(logFile, "A server is trying to steal our message!");
+                            // Block server
+                        }
+                        unread_message msg_to_get = getmsgs(to);
+                        for (Server& server : CONNECTED_SERVERS) {
+                            if (server.sock == sock){
+                                if (msg_to_get.message.empty()) sendToServer(&server, "EMPTY");
+                                else {
+                                sendToServer(&server, msg_to_get.message);
+                                writeLog(logFile, "Message delivered");
+                                }
+                            }
+                        }
+                    }
                     
 
 
                     //Client stuff
                     else if (message.substr(0, 9) == "USERNAME,"){
-                        
-                        
-                        
-                        
-                        
                         Client *client = clients[sock];
 
                         Client *new_client = new Client(client_sock);
@@ -960,15 +971,10 @@ int main(int argc, const char* argv[]){
                         
                         clients[client_sock] = new_client;
 
-
-
-
                         client->name = message.substr(9);
                         sendToClient(client, "Welcome");
                         writeLog(logFile, "Username Recieved: " + client->name);
                         writeLog(logFile, client->name + " has logged in!"); 
-
-
                     }
 
                     else if (message.substr(0, 8) == "SENDMSG,"){
@@ -1001,7 +1007,7 @@ int main(int argc, const char* argv[]){
 
                         if (command.from.empty()){
                             cout << "Incorrectly formatted GETMSG" << endl;
-                              writeLog(logFile, "Invalid GETMSG received on socket " + to_string(sock));
+                            writeLog(logFile, "Invalid GETMSG received on socket " + to_string(sock));
 
 
                         }
@@ -1015,7 +1021,7 @@ int main(int argc, const char* argv[]){
                         }
                     }   
 
-                   else if (message == "STATUSREQ") {
+                    else if (message == "STATUSREQ") {
                         writeLog(logFile, "Received STATUSREQ on socket " + to_string(sock));
 
 
@@ -1038,29 +1044,20 @@ int main(int argc, const char* argv[]){
                             writeLog(logFile, "Sent STATUSRESP: " + message);
                         }
                     }
-
                     else if (message.substr(0, 11) == "STATUSRESP,"){
                         writeLog(logFile, "Received STATUSRESP on socket " + to_string(sock) + ": " + message);
                         receiveStatusresp(sock, message);
-
                     }
-
-
-
                     else {
-
                         if (clients.count(sock)){
                             sendToClient(clients[sock], "INVALID COMMAND");
                         }
-
                         writeLog(logFile, "Invalid command received: " + message);
                     }
                 }
             }
         }
     }
-
-    
 }
 
 
