@@ -368,7 +368,6 @@ These timestamps help identify the message exchanges used for the Indirect Bot b
 The corresponding log entries should show the incoming and outgoing `SENDMSG` commands for relaying, and message storage followed by successful delivery for patience.
 
 
-
 ## Implementation Details
 
 The project uses:
@@ -383,6 +382,16 @@ The project uses:
 - Timestamp preservation for forwarded messages
 
 No third-party networking libraries are required.
+
+## Statement of authorship
+# Authorship
+The main method used for this assignment was pair programming. However some specific implementations were divided up.
+The client commands and the poll() logic, were mostly left unchanged from assignment 6.
+Olgeir wrote most of the connection commands (Helo, servers, and keepalive) while Patrik wrote the Getmsgs and Sendmsgs logic. For the rest of the code, we co-oporated on, and pair programmed almost everything else.
+
+# Tools and other sources
+LLDB was used to debug the code when our logs did not indicate what was going on with the code.
+GeeksForGeeks and StackOverflow, as well as AI tools such as ChatGPT were used to help us figure out C++ syntax and to help us understand some TCP networking, and socket programming topics.
 
 
 ## Course
