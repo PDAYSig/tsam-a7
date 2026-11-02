@@ -314,8 +314,8 @@ void writeLog(ofstream& logFile, string message){
 
 
 // Send a message to a server
-string serverSendmsg(Server* server, unread_message msg){
-    string message = "SENDMSG";
+void serverSendmsg(Server* server, unread_message msg){
+    string message = "SENDMSG,";
     message += msg.from + ',';
     message += msg.to + ',';
     message += msg.timestamp + ',';
@@ -580,7 +580,7 @@ string statusResp(){
     }
     
     if (message == "STATUSRESP,"){
-        return "STATUSRESP, empty";
+        return "STATUSRESP, EMPTY";
     }
 
     message.pop_back(); //Delete the final comma
@@ -663,7 +663,7 @@ void receiveStatusresp(int sock, string message){
         
             string frame = createFrame(command);
             send(sock, frame.c_str(), frame.size(), 0);
-            cout << "sent GETMSGS to " + group_id;
+            cout << "sent GETMSGS to " + group_id + '\n';
             }
         }   
     }
@@ -749,7 +749,7 @@ int main(int argc, const char* argv[]){
                 
     while (true){
         
-        if ((CONNECTED_SERVERS.size() < 3) && (FRIEND_SERVERS.size() > 0)){
+        if ((CONNECTED_SERVERS.size() < 8) && (FRIEND_SERVERS.size() > 0)){
             friend_server server_to_connect = FRIEND_SERVERS[0];
             writeLog(logFile, "Attempting to connect to " + server_to_connect.g_id);
 
@@ -913,15 +913,29 @@ int main(int argc, const char* argv[]){
                                 
                                 //Remove Instructor servers first
                                 if (id.substr(0,2) == "I_"){
+<<<<<<< HEAD
                                     remove_server(server);
+=======
+                                    remove_server(&server);
+                                    writeLog(logFile, "Removed an instructor server in favor of group server: " + server.g_id + " was removed");
+
+>>>>>>> ed9ae5f5744aec663d88bc7bb0145fabd30dd50b
                                     break;
                                 }
                             }
 
                             if (CONNECTED_SERVERS.size() >= 8){
+<<<<<<< HEAD
                                 //REMOVE OLDEST SERVER if there is no instructor
                                 Server* first_server = CONNECTED_SERVERS.front();
                                 remove_server(first_server);
+=======
+                                //REMOVE OLDEST SERVER
+                                Server first_server = CONNECTED_SERVERS.front();
+                                remove_server(&first_server);
+                                writeLog(logFile, "Removed an old server in favor of new server: " + first_server.g_id + " was removed");
+
+>>>>>>> ed9ae5f5744aec663d88bc7bb0145fabd30dd50b
                             }
 
                         }
@@ -982,7 +996,7 @@ int main(int argc, const char* argv[]){
                             if (server.sock == sock){
                                 if (msg_to_get.message.empty()) sendToServer(&server, "EMPTY");
                                 else {
-                                sendToServer(&server, msg_to_get.message);
+                                serverSendmsg(&server, msg_to_get);
                                 writeLog(logFile, "Message delivered");
                                 }
                             }
@@ -1011,7 +1025,7 @@ int main(int argc, const char* argv[]){
                         writeLog(logFile, client->name + " has logged in!"); 
                     }
 
-                    else if (message.substr(0, 8) == "SENDMSG,"){
+                    else if (message.substr(0, 7) == "SENDMSG"){
                         command_input command = extract_command((char*)message.c_str());
 
                         if (command.from.empty() || command.to.empty() || command.msg.empty()){
@@ -1020,19 +1034,69 @@ int main(int argc, const char* argv[]){
 
                         }
                         else {
-                          
                             if (clients.count(sock)){ //message from a client
                                 Client *client = clients[sock];
-                                                                sendToClient(client, "OK");
-                                storeMessage(command.from, command.to, to_string(time(nullptr)), command.msg);                           
-                                writeLog(logFile, "Client " + client->name + " sent a message to " + command.to);
+                                sendToClient(client, "OK");
 
+                                if (command.to == SERVER_ID){
+                                storeMessage(command.from, command.to, to_string(time(nullptr)), command.msg);
+                                continue;
+                                }
+                                bool known = false;
+                                for (Server& server: CONNECTED_SERVERS){
+                                    if (server.g_id == command.to) {
+                                        known = true;
+                                        sendToServer(&server, message);
+                                        writeLog(logFile, "Routed message for " + command.to + "to port "+ to_string(sock));
+
+                                    } else {
+                                        for (string f_server : server.connected_servers){
+                                            if (command.to == f_server) {
+                                                known = true;
+                                                sendToServer(&server, message);
+                                                writeLog(logFile, "Routed message for " + command.to + "to port "+ to_string(sock));
+                                            }
+                                        }
+                                    }
+                                }
+                                if (!known){
+                                    storeMessage(command.from, command.to, to_string(time(nullptr)), command.msg);
+                                    writeLog(logFile, "Received SENDMSG from server on socket " + to_string(sock) + " for " + command.to);
+                                }
+                                writeLog(logFile, "Client " + client->name + " sent a message to " + command.to);
                             }
 
-                            else{ //Message from a server
-                                storeMessage(command.from, command.to, to_string(time(nullptr)), command.msg);
-
+                            else{
+                                //Message from a server
                                 writeLog(logFile, "Received SENDMSG from server on socket " + to_string(sock) + " for " + command.to);
+
+                                if (command.to == SERVER_ID){
+                                    // if it's for us, we save it
+                                    storeMessage(command.from, command.to, to_string(time(nullptr)), command.msg);
+                                    continue;
+                                }
+                                // Check if we know where the message is going
+                                bool known = false;
+                                for (Server& server: CONNECTED_SERVERS){
+                                    if (server.g_id == command.to) {
+                                        known = true;
+                                        sendToServer(&server, message);
+                                        writeLog(logFile, "Routed message for " + command.to + "to port "+ to_string(sock));
+
+                                    } else {
+                                        for (string f_server : server.connected_servers){
+                                            if (command.to == f_server) {
+                                                known = true;
+                                                sendToServer(&server, message);
+                                                writeLog(logFile, "Routed message for " + command.to + "to port "+ to_string(sock));
+                                            }
+                                        }
+                                    }
+                                }
+                                if (!known){
+                                    storeMessage(command.from, command.to, to_string(time(nullptr)), command.msg);
+                                    writeLog(logFile, "Received SENDMSG from server on socket " + to_string(sock) + " for " + command.to);
+                                }
                             }
                         }
                     }
