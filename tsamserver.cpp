@@ -556,7 +556,7 @@ void receiveServers(int sock, string message) {
 void keepAlive(int sock, string group_id){
     int count = UNREAD_MESSAGES[group_id].size();
 
-    string message = "KEEPALIVE,0" + to_string(count);
+    string message = "KEEPALIVE," + to_string(count);
     
     string frame = createFrame(message);
     send(sock, frame.data(), frame.size(), 0);
@@ -590,7 +590,7 @@ string statusResp(){
     }
     
     if (message == "STATUSRESP,"){
-        return "STATUSRESP, EMPTY";
+        return "STATUSRESP,EMPTY";
     }
 
     message.pop_back(); //Delete the final comma

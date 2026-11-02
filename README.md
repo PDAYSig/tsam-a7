@@ -1,167 +1,384 @@
 
-# TSAM Assignment 7 - TCP Mail Server and Client
+# TSAM Assignment 8 – The Botnet Saves the World
 
 ## Description
 
-This project implements a TCP mail server and client in C++.
+This project implements a distributed TCP messaging system in C++.
 
-The server supports multiple clients using `poll()`. Clients can send messages to other users, retrieve unread messages, and request the number of stored messages.
+It extends the client-server messaging system from Assignment 6 by allowing multiple servers to connect and exchange messages.
 
-Messages are stored on the server until they are retrieved.
+Each server can receive messages from clients, forward messages to other servers, and store messages when their destination is not reachable.
 
-## Project Files
+The system uses a store-and-forward approach to deliver messages between different groups.
 
-| File | Description |
-|------|-------------|
-| `tsamserver.cpp` | TCP server implementation |
-| `tsamclient.cpp` | TCP client implementation |
-| `Makefile` | Compiles the server and client |
-| `server.log` | Server activity log |
-| `client-output.txt` | Recorded client output |
-| `README.md` | Project documentation |
+## Group Information
+
+- **Group ID:** `G_uinness`
+- **Course:** T-409-TSAM – Computer Networks
+- **Assignment:** 8 – The Botnet Saves the World
+- **Language:** C++
+- **Platform:** Linux
+
+## Files
+
+- `tsamserver.cpp` – TCP server implementation
+- `tsamclient.cpp` – TCP client implementation
+- `Makefile` – Compiles the project
+- `server.log` – Records server activity
+- `README.md` – Project documentation
 
 ## Compilation
 
-Compile both programs using:
+Compile the project using:
 
 ```bash
 make
 ```
 
-Alternatively, compile them manually:
+This builds the executables defined in the Makefile.
+
+## Running the Server
+
+Start the server by specifying a listening port:
 
 ```bash
-g++ tsamserver.cpp -o tsamserver
-g++ tsamclient.cpp -o tsamclient
+./tsamserver 4000
 ```
 
-## Running the Programs
+The server listens for incoming TCP connections on the specified port.
 
-**1. Start the server**
+The same listening socket accepts connections from both clients and other servers.
 
-Open a terminal and run:
+On startup, the server attempts to connect to the bootstrap server:
+
+- **IP:** `130.208.246.98`
+- **Port:** `5001`
+
+The bootstrap server helps discover other servers in the network.
+
+## Running the Client
+
+Start the client using:
 
 ```bash
-./tsamserver <port>
+./tsamclient <server-ip> <server-port>
 ```
 
-**2. Start the client**
-
-Open another terminal and run:
+For example:
 
 ```bash
-./tsamclient <ip> <port>
+./tsamclient 127.0.0.1 4000
 ```
 
-The IP address `127.0.0.1` connects to a server running on the same computer. Port `4044` is an example and can be changed.
+The client connects to the specified server and can send messages, retrieve messages, and request message status.
 
-After connecting, the client asks for a username. Once the username is sent, the client can enter commands.
+## Communication Protocol
 
-Multiple clients can connect to the server at the same time.
+All communication uses TCP.
 
-## Supported Commands
+Messages are transmitted using the following frame structure:
+
+```text
+<SOH><LENGTH><STX><COMMAND><ETX>
+```
+
+| Field | Description |
+|-------|-------------|
+| SOH | Start of header (0x01) |
+| LENGTH | 2-byte big-endian total frame length |
+| STX | Start of text (0x02) |
+| COMMAND | Message command and parameters |
+| ETX | End of text (0x03) |
+
+The maximum supported frame size is 5000 bytes.
+
+The server maintains a receive buffer for each socket to handle incomplete TCP frames and multiple frames arriving together.
+
+## Client Commands
+
+### USERNAME
+
+Registers a client username.
+
+```text
+USERNAME,<username>
+```
+
+Example:
+
+```text
+USERNAME,olgeir
+```
+
+The server responds with:
+
+```text
+Welcome
+```
 
 ### SENDMSG
 
-Send a message to another user.
-
-**Format:**
+Sends a message to another user or group.
 
 ```text
 SENDMSG,<from>,<to>,<message>
 ```
 
-**Example:**
+Example:
 
 ```text
-SENDMSG,Alice,Bob,Hello Bob
+SENDMSG,olgeir,G_goats,Hello!
 ```
 
-The server stores the message for Bob until it is retrieved.
+The server adds a timestamp before forwarding the message to another server.
 
 ### GETMSG
 
-Retrieve an unread message for a user.
-
-**Format:**
+Retrieves the oldest unread message from a specified sender.
 
 ```text
-GETMSG,<username>
+GETMSG,<from>
 ```
 
-**Example:**
+Example:
 
 ```text
-GETMSG,Bob
+GETMSG,G_goats
 ```
 
-If no unread messages are available, the server returns `EMPTY`.
+If no matching message exists, the server responds with:
+
+```text
+EMPTY
+```
 
 ### STATUSREQ
 
-Request the number of unread messages stored for each user.
-
-**Format:**
+Requests information about unread messages.
 
 ```text
 STATUSREQ
 ```
 
-**Example response:**
+Example response:
 
 ```text
-Alice:2,Bob:1
+G_goats:2,G_nammi:1
 ```
 
-If no unread messages are stored, the server returns `EMPTY`.
+This indicates two messages from `G_goats` and one from `G_nammi`.
 
-## TCP Message Format
+If there are no unread messages, the server responds with `EMPTY`.
 
-All commands and responses use the following frame structure:
+## Server-to-Server Commands
+
+### HELO
+
+Exchanges group identities when servers connect.
 
 ```text
-SOH | Length (2 bytes) | STX | Message | ETX
+HELO,<group-id>
 ```
 
-| Field | Description |
-|-------|-------------|
-| SOH | Start of header (`0x01`) |
-| Length | Total frame length in network byte order |
-| STX | Start of text (`0x02`) |
-| Message | Command or response |
-| ETX | End of text (`0x03`) |
+Example:
 
-The maximum frame size is **5000 bytes**, including the header and control bytes.
+```text
+HELO,G_uinness
+```
 
+### SERVERS
+
+Shares information about known servers.
+
+```text
+SERVERS,<group-id>,<ip>,<port>;...
+```
+
+Example:
+
+```text
+SERVERS,G_uinness,130.208.246.98,4000;G_goats,130.208.246.98,4022
+```
+
+The received information is used for discovering additional servers and determining possible forwarding routes.
+
+### KEEPALIVE
+
+Notifies a connected server about the number of messages waiting for it.
+
+```text
+KEEPALIVE,<count>
+```
+
+Example:
+
+```text
+KEEPALIVE,3
+```
+
+The receiving server can request its waiting messages using `GETMSGS`.
+
+KEEPALIVE messages are sent periodically, no more than once per minute.
+
+### GETMSGS
+
+Requests stored messages for a specified group.
+
+```text
+GETMSGS,<group-id>
+```
+
+Example:
+
+```text
+GETMSGS,G_uinness
+```
+
+### SENDMSG
+
+Transfers a message between servers.
+
+```text
+SENDMSG,<from>,<to>,<timestamp>,<message>
+```
+
+Example:
+
+```text
+SENDMSG,olgeir,G_goats,1793500000,Hello!
+```
+
+The original timestamp is preserved when the message is forwarded.
+
+### STATUSREQ
+
+Requests information about messages stored on another server.
+
+```text
+STATUSREQ
+```
+
+### STATUSRESP
+
+Returns the number of stored messages for each destination group.
+
+```text
+STATUSRESP,<group-id>:<count>,...
+```
+
+Example:
+
+```text
+STATUSRESP,G_goats:2,G_nammi:1
+```
+
+If no messages are stored:
+
+```text
+STATUSRESP,EMPTY
+```
+
+## Message Storage and Forwarding
+
+Messages are stored in memory using:
+
+```cpp
+map<string, vector<unread_message>> UNREAD_MESSAGES;
+```
+
+Each message contains:
+
+- Message content
+- Sender
+- Destination
+- Timestamp
+
+When a message arrives, the server checks its destination.
+
+1. If the message is addressed to the local server, it is stored for client retrieval.
+2. If the destination is a directly connected server, the message is forwarded.
+3. If a connected server reports a route to the destination, the message can be forwarded through that server.
+4. If no route is known, the message is stored until delivery becomes possible.
+
+The server uses information received through `SERVERS`, `KEEPALIVE`, and `STATUSRESP` to support message delivery.
+
+## Connection Management
+
+The server uses `poll()` to monitor multiple TCP sockets without creating a separate thread for each connection.
+
+It maintains:
+
+- `CONNECTED_SERVERS` – Currently connected peer servers
+- `FRIEND_SERVERS` – Discovered servers available for connection
+- `clients` – Connected clients
+- `fds` – File descriptors monitored by `poll()`
+
+Incoming connections are identified using their initial commands:
+
+- `HELO` identifies another server.
+- `USERNAME` identifies a client.
+
+Disconnected sockets are removed from the relevant connection structures.
 
 ## Logging
 
-The server records activity in `server.log`
-
-### Saving Client Output
-
-To display client output and save it to `client-output.txt` at the same time, run:
-
-```bash
-./tsamclient 127.0.0.1 4044 | tee client-output.txt
-```
-
-The client displays timestamps for commands and server responses.
-
-## Closing the Programs
-
-To disconnect the client, enter:
+Server activity is written to:
 
 ```text
-Q
+server.log
 ```
 
-To stop the server, press `Ctrl+C` in the server terminal.
+The log includes events such as:
 
-## Implementation
+- Server startup
+- Incoming connections
+- Successful and failed connection attempts
+- Received protocol commands
+- Message forwarding
+- Message storage and delivery
+- Socket disconnections
 
-- **Language:** C++
-- **Transport protocol:** TCP
-- **Multiple clients:** `poll()`
-- **Message framing:** SOH, length, STX, payload, ETX
-- **Platform:** Linux / Ubuntu (WSL)
+To view recent log entries:
+
+```bash
+tail -n 30 server.log
+```
+
+To monitor the log continuously:
+
+```bash
+tail -f server.log
+```
+
+To clear the log:
+
+```bash
+> server.log
+```
+
+## Implementation Details
+
+The project uses:
+
+- C++ standard library containers
+- POSIX TCP sockets
+- `poll()` for handling multiple connections
+- Per-socket receive buffers
+- Custom binary message framing
+- In-memory message queues
+- Server discovery and message forwarding
+- Timestamp preservation for forwarded messages
+
+No third-party networking libraries are required.
+
+## Notes
+
+Messages are currently stored in memory and are not preserved across server restarts.
+
+The server is designed to run on Linux and communicate with other student servers using the Assignment 8 protocol.
+
+## Course
+
+Reykjavik University  
+T-409-TSAM – Computer Networks  
+Assignment 8 – The Botnet Saves the World
