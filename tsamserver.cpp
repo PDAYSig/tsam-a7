@@ -27,6 +27,21 @@ const string SERVER_ID = "G_uinness";
 const string TSAM_SERVER_IP = "130.208.246.98";
 const int TSAM_SERVER_PORT = 5001;
 const string SERVER_IP = "130.208.246.98";
+vector<Server> CONNECTED_SERVERS;
+vector<friend_server> FRIEND_SERVERS;
+struct command_input{
+    string cmd;
+    string from;
+    string to;
+    string msg;
+};
+struct unread_message{
+    string message;
+    string from;
+    string to;
+    string timestamp;
+};
+map<string,vector<unread_message> > UNREAD_MESSAGES;
 class Client
 {
     public:
@@ -48,7 +63,6 @@ struct friend_server
     int port;
 };
 
-vector<friend_server> FRIEND_SERVERS;
 
 class Server
 {
@@ -57,12 +71,15 @@ class Server
     string ip;
     int port;
     string g_id;
+    vector<Server*> connected_servers;
+    unsigned char recvbuffer[5000];
+    unsigned char sendbuffer[5000];
+
     vector<string> connected_servers;
     Server(int sock_fd, string s_name, string ip_addr, int port) : sock(sock_fd), g_id(s_name), ip(ip_addr), port(port){};
     ~Server(){};
 };
 
-vector<Server> CONNECTED_SERVERS;
 
 
 string getTimestamp() {
@@ -84,23 +101,8 @@ map<int, Client*> clients; // Lookup table for per Client information
 vector<struct pollfd> fds;
 
 
-struct command_input{
-    string cmd;
-    string from;
-    string to;
-    string msg;
-};
 
 
-struct unread_message{
-    string message;
-    string from;
-    string to;
-    string timestamp;
-};
-
-
-map<string,vector<unread_message> > UNREAD_MESSAGES;
 
 
 int nfds = 1;
@@ -160,10 +162,36 @@ void remove_clients(Client* client){
 }
 
 
+void remove_server(Server* server) {
+    int server_socket = server->sock;
+    close(server_socket);
+
+    auto fdit = find_if(fds.begin(), fds.end(),
+        [server_socket](const struct pollfd &pfd) {
+            return pfd.fd == server_socket;
+        }
+    );
+
+    if (fdit != fds.end()) {
+        fds.erase(fdit);
+    }
+
+    auto it = find_if(CONNECTED_SERVERS.begin(), CONNECTED_SERVERS.end(),
+        [server](Server &s) {
+            return &s == server;
+        }
+    );
+
+    if (it != CONNECTED_SERVERS.end()) {
+        CONNECTED_SERVERS.erase(it);
+    }
+}
+
+
 command_input extract_command(char* message){
     stringstream ss(message);
     command_input command{};
-
+    
     if (!getline(ss, command.cmd, ',')) return {};
     if (command.cmd == "SENDMSG"){
         if (!getline(ss, command.from, ',')) return {};
@@ -185,12 +213,10 @@ int sendMessage(command_input &command){ // store a message on the server
     unread_message new_message;
     new_message.message = command.msg;
     new_message.from = command.from;
-    if (UNREAD_MESSAGES.count(command.to) > 0){
-        UNREAD_MESSAGES[command.to].push_back(new_message);
-    } else {
-        vector<unread_message> entry = {new_message};
-        UNREAD_MESSAGES[command.to] = entry;
-    } printf("MESSAGE SENT\n");
+
+    UNREAD_MESSAGES[command.to].push_back(new_message);
+
+    printf("MESSAGE SENT\n");
     return 0;
 }
 
@@ -225,25 +251,23 @@ string statusRequest(){
     return message_statuses;
 }
 
-
 string createFrame(string message){
-
     //Create the frame that we edit and then return
     string frame = "";
-
+    
     uint16_t length = message.size() + 5; // add 5 because of SOH,length(2bytes),STX and ETX
-
+    
     frame += (char)0x01; //SOH
-
+    
     frame += (char)(length >> 8); //Get the first byte
     frame += (char)(length & 0xFF); //Get the second byte
-
+    
     frame += (char)0x02; //STX
-
+    
     frame += message; //Add the message
-
+    
     frame += (char)0x03; //ETX
-
+    
     return frame;
 }
 
@@ -256,15 +280,42 @@ bool sendToClient(Client* client, string message){
 }
 
 
-// bool sendToServer(Server* server, string message){
-    
+bool sendToServer(Server* server, string message){
+    string frame = createFrame(message);
+    int sent = send(server->sock, frame.data(), frame.size(), 0);
+    if (sent < 0) return false;
+    return true;
+}
 
+
+// Returns the most recent message a group has on this server
+unread_message getmsgs(string g_id){
+    if (UNREAD_MESSAGES.count(g_id) > 0){
+        vector<unread_message> messages = UNREAD_MESSAGES[g_id];
+        
+        unread_message most_recent = messages.front();
+        messages.erase(messages.begin());
+        return most_recent;
+    }
+    unread_message empty_message = {};
+    return empty_message;
+}
 
 void writeLog(ofstream& logFile, string message){
     logFile << "| " << getTimestamp() << " | " << message << endl;
 }    
 
 
+// Send a message to a server
+string serverSendmsg(Server* server, unread_message msg){
+    string message = "SENDMSG";
+    message += msg.from + ',';
+    message += msg.to + ',';
+    message += msg.timestamp + ',';
+    message += msg.message;
+
+    sendToServer(server, message);
+}
 
 
 //Send our group id to another server after connecting
@@ -364,7 +415,7 @@ int connectToServer(string ip, int port){
     return sock;
 }    
 
-    
+
 
 
 void receiveHelo(int sock, string message) {
@@ -925,17 +976,17 @@ int main(int argc, const char* argv[]){
                             writeLog(logFile, "Command: GETMSG. " + client->name +
                                             " requested messages from " + command.from);
                         }
-                    }
+                    }   
 
-                   else if (message == "STATUSREQ") {
-                       
+                    else if (message == "STATUSREQ") {
+                        
                        if (clients.count(sock)) { //Client asks for statusreq
-                           
-                           Client* client = clients[sock];
-                           
-                           string response = statusRequest();
-                           sendToClient(client, response);
-                           
+                            
+                            Client* client = clients[sock];
+                            
+                            string response = statusRequest();
+                            sendToClient(client, response);
+                            
                         }
                         else { //Server asked for statusreq
                             cout << "STATUSREQ received from another server" << endl;
@@ -968,7 +1019,6 @@ int main(int argc, const char* argv[]){
             }
         }
     }
-
 }
 
 
