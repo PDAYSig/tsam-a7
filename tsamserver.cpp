@@ -495,20 +495,19 @@ void keepAlive(int sock, string group_id){
 }
 
 
-map<string, vector<unread_message>> SERVER_MESSAGES;
 
 
 void storeMessage(string from, string to, string timestamp, string message) {
 
     unread_message new_message = {message, from, to, timestamp};
 
-    SERVER_MESSAGES[to].push_back(new_message);
+    UNREAD_MESSAGES[to].push_back(new_message);
 }
 
 
 string statusResp(){
     string message = "STATUSRESP,";
-    for (const auto& server : SERVER_MESSAGES){
+    for (const auto& server : UNREAD_MESSAGES){
         if (!server.second.empty()){
             message += server.first + ":" + to_string(server.second.size()) + ",";
         }
@@ -580,16 +579,14 @@ void receiveStatusresp(int sock, string message){
 
         //Ask for the messeges that are related to us
         //Send getMSG as many times as messeges we need
-        if (known_server && count > 0){
+        if (known_server && count > 0 && group_id.substr(0,2) != "I_"){
             string command = "GETMSGS," + group_id;
         
-            for (int i = 0; i < count; i++){
-                string frame = createFrame(command);
-                send(sock, frame.c_str(), frame.size(), 0);
+            string frame = createFrame(command);
+            send(sock, frame.c_str(), frame.size(), 0);
             }
         }   
     }
-}
 
 
 
@@ -643,6 +640,7 @@ int main(int argc, const char* argv[]){
     
     if (server_sock < 0){
         cout << "Could not connect to bootstrap server" << endl;
+        writeLog(logFile, "Failed to connect to bootstrap server");
     }
     else {
         cout << "Connected to bootstrap server!" << endl;
@@ -650,29 +648,39 @@ int main(int argc, const char* argv[]){
     }
     
 
-    // //Connect GOATS
-    // int friend_sock = connectToServer("ip", 4022);
-    // cout << "Goats socket: " << friend_sock << endl;
+    // while (true){
 
-
-    // if (friend_sock < 0) {
-    //     cout << "Could not connect to friend's server" << endl;
-    //     }
-    // else {
-    //     cout << "Connected to friend's server!" << endl;
-    //     writeLog(logFile, "Connected to friend's server");
-    // }
-
+        // Begin by checking if we have the minimum amound of required servers
+        
+        // //Connect GOATS
+        // int friend_sock = connectToServer("ip", 4022);
+        // cout << "Goats socket: " << friend_sock << endl;
+        
+        
+        // if (friend_sock < 0) {
+            //     cout << "Could not connect to friend's server" << endl;
+            //     }
+            // else {
+                //     cout << "Connected to friend's server!" << endl;
+                //     writeLog(logFile, "Connected to friend's server");
+                // }
+                
     time_t last_keepAlive = time(nullptr);
-
+                
     while (true){
-         // Begin by checking if we have the minimum amound of required servers
+        
         if ((CONNECTED_SERVERS.size() < 3) && (FRIEND_SERVERS.size() > 0)){
             friend_server server_to_connect = FRIEND_SERVERS[0];
-            if (connectToServer(server_to_connect.ip, server_to_connect.port) < 0) continue;
+            writeLog(logFile, "Attempting to connect to " + server_to_connect.g_id);
+
+            if (connectToServer(server_to_connect.ip, server_to_connect.port) < 0){
+                writeLog(logFile, "Failed to connect to " + server_to_connect.g_id);
+                continue;
+            }
+            writeLog(logFile, "Connected to " + server_to_connect.g_id);
             FRIEND_SERVERS.erase(FRIEND_SERVERS.begin());
         }
-
+         
         // Wait for something to read
         int n = poll(fds.data(), fds.size(), 1000); //waits at most 1 sec
 
@@ -682,6 +690,7 @@ int main(int argc, const char* argv[]){
             for (const Server& server : CONNECTED_SERVERS){
                 if (server.sock >= 0){
                     keepAlive(server.sock, server.g_id);
+                    writeLog(logFile, "Sent KEEPALIVE to " + server.g_id + " on socket " + to_string(server.sock));
 
 
 
@@ -711,7 +720,7 @@ int main(int argc, const char* argv[]){
         // Check if the listening socket has new readable data
         if (fds[0].revents & POLLIN){
             client_len = sizeof(client_sock_addr);
-            add_connections(listening_sock, client_sock_addr, client_len, fds);
+            add_connections(listening_sock, client_sock_addr, client_len, fds); //adds both lients and servers
             writeLog(logFile, "New connection accepted");
         }
         for(size_t i = 1; i < readyFds.size(); i++){
@@ -824,7 +833,7 @@ int main(int argc, const char* argv[]){
                                 
                                 //Remove Instructor servers first
                                 if (id.substr(0,2) == "I_"){
-                                   //removeServer()
+                                   //remove_server(server)
                                    
                                    break;
                                 }
@@ -832,6 +841,8 @@ int main(int argc, const char* argv[]){
 
                             if (CONNECTED_SERVERS.size() >= 8){
                                 //REMOVE OLDEST SERVER
+                                //first_server = CONNECTED_SERVERS.begin()
+                                //remove_server(first_server)
                             }
 
                         }
@@ -846,6 +857,9 @@ int main(int argc, const char* argv[]){
                         }   
                         //Save the server
                         receiveHelo(sock, message);
+                        writeLog(logFile, "Processed HELO for peer on socket " + to_string(sock) + ": " + message.substr(5));
+
+
 
                         if (!already_connected){
                             helo(sock); //Only send helo if we have not already
@@ -862,16 +876,33 @@ int main(int argc, const char* argv[]){
                     }
 
                     else if (message.substr(0, 10) == "KEEPALIVE,"){
-                        writeLog(logFile, "Received KEEPALIVE: " + message);
-                        
+                        writeLog(logFile, "Received KEEPALIVE from socket " + to_string(sock) + ": " + message);                        
 
+                        int count = stoi(message.substr(10));
 
+                        if (count > 0){
+                            string command = "GETMSGS," + SERVER_ID;
+                            string frame = createFrame(command);
 
+                            send(sock, frame.c_str(), frame.size(), 0);
+
+                            writeLog(logFile, "Sent GETMSGS to socket " + to_string(sock));
+                        }
                     }
+                   
+
+                
+
+                    
 
 
                     //Client stuff
                     else if (message.substr(0, 9) == "USERNAME,"){
+                        
+                        
+                        
+                        
+                        
                         Client *client = clients[sock];
 
                         Client *new_client = new Client(client_sock);
@@ -894,11 +925,16 @@ int main(int argc, const char* argv[]){
 
                     else if (message.substr(0, 8) == "SENDMSG,"){
 
+
                         Client *client = clients[sock];
                         command_input command = extract_command((char*)message.c_str());
 
                         if (command.from.empty() || command.to.empty() || command.msg.empty()){
                             cout << "Incorrectly formatted SENDMSG" << endl;
+                            writeLog(logFile, "Invalid SENDMSG received on socket " + to_string(sock));
+
+
+
                         }
                         else {
                             sendMessage(command);
@@ -911,11 +947,15 @@ int main(int argc, const char* argv[]){
 
                     else if (message.substr(0, 7) == "GETMSG,"){
 
+
                         Client *client = clients[sock];
                         command_input command = extract_command((char*)message.c_str());
 
                         if (command.from.empty()){
                             cout << "Incorrectly formatted GETMSG" << endl;
+                              writeLog(logFile, "Invalid GETMSG received on socket " + to_string(sock));
+
+
                         }
                         else {
                             string gotten_message = getMessage(client->name, command.from);
@@ -928,7 +968,9 @@ int main(int argc, const char* argv[]){
                     }
 
                    else if (message == "STATUSREQ") {
-                       
+                        writeLog(logFile, "Received STATUSREQ on socket " + to_string(sock));
+
+
                        if (clients.count(sock)) { //Client asks for statusreq
                            
                            Client* client = clients[sock];
@@ -950,6 +992,7 @@ int main(int argc, const char* argv[]){
                     }
 
                     else if (message.substr(0, 11) == "STATUSRESP,"){
+                        writeLog(logFile, "Received STATUSRESP on socket " + to_string(sock) + ": " + message);
                         receiveStatusresp(sock, message);
 
                     }
@@ -969,6 +1012,7 @@ int main(int argc, const char* argv[]){
         }
     }
 
+    
 }
 
 
