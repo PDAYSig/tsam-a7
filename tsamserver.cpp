@@ -218,11 +218,11 @@ int sendMessage(command_input &command){ // store a message on the server
 }
 
 
-string getMessage(string client, string from){
+string getMessage(string from){
     /* Returns the most recent unread messages from a specified client */
-    if (UNREAD_MESSAGES.count(client) == 0) return "EMPTY";
+    if (UNREAD_MESSAGES.count("G_uinness") == 0) return "EMPTY";
     string client_message;
-    vector<unread_message>& client_message_vector = UNREAD_MESSAGES[client];
+    vector<unread_message>& client_message_vector = UNREAD_MESSAGES["G_uinness"];
     for (int i = 0; i < client_message_vector.size(); i++){
         if (client_message_vector[i].from == from){
             client_message = client_message_vector[i].message;
@@ -959,29 +959,20 @@ int main(int argc, const char* argv[]){
 
 
                     //Client stuff
-                    else if (message.substr(0, 9) == "USERNAME,"){
-                        cout << "1. USERNAME received" << endl;           
-                        
+                    else if (message.substr(0, 9) == "USERNAME,"){                       
 
                         Client *client = new Client(sock);
-
-                         cout << "2. Client created" << endl;
 
                         client->recvd_bytes = 0;
                         memset(client->recvbuffer, 0, sizeof(client->recvbuffer));
                         memset(client->sendbuffer, 0, sizeof(client->sendbuffer));
                         
                         clients[sock] = client;
-                        cout << "3. Client saved" << endl;
-
-
 
 
                         client->name = message.substr(9);
-                        cout << "4. Username: " << client->name << endl;
 
                         sendToClient(client, "Welcome");
-                        cout << "5. Welcome sent" << endl;
 
                         writeLog(logFile, "Username Recieved: " + client->name);
                         writeLog(logFile, client->name + " has logged in!"); 
@@ -1030,7 +1021,7 @@ int main(int argc, const char* argv[]){
 
                         }
                         else {
-                            string gotten_message = getMessage(client->name, command.from);
+                            string gotten_message = getMessage(command.from);
 
                             sendToClient(client, gotten_message);
 
